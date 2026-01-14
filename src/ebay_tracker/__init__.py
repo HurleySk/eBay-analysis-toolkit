@@ -1,2 +1,3 @@
-def main() -> None:
-    print("Hello from ebay-tracker!")
+"""eBay Tracker - Track sold listings and predict prices."""
+
+__version__ = "0.1.0"
