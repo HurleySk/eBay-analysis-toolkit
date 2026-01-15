@@ -5,6 +5,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from ebay_tracker.analyzer import analyze_listings, get_recommendation
 from ebay_tracker.config import get_config
 from ebay_tracker.db import Database
 from ebay_tracker.models import Search, FetchLog
@@ -226,6 +227,75 @@ def fetch(
 
     console.print()
     console.print(f"[green]Done![/green] {total_new} new listings added")
+    db.close()
+
+
+@app.command()
+def analyze(
+    name: str = typer.Argument(..., help="Name of search to analyze"),
+    target_price: Optional[float] = typer.Option(None, "--target-price", "-t", help="Target price for wait estimate"),
+):
+    """Analyze price statistics and get predictions."""
+    db = get_db()
+
+    search = db.get_search_by_name(name)
+    if not search:
+        console.print(f"[red]Search '{name}' not found[/red]")
+        db.close()
+        raise typer.Exit(1)
+
+    listings = db.get_listings_for_search(search.id)
+
+    if not listings:
+        console.print(f"[yellow]{search.name}[/yellow] - No data")
+        console.print("[dim]Run 'fetch' to collect listings first.[/dim]")
+        db.close()
+        return
+
+    stats = analyze_listings(listings)
+    rec = get_recommendation(listings, target_price)
+
+    # Header
+    console.print()
+    console.print(f"[bold cyan]{search.name}[/bold cyan] ({stats['count']} sales tracked)")
+    console.print()
+
+    # Price stats
+    price = stats["price"]
+    console.print(
+        f"[bold]Price:[/bold]      "
+        f"${price['median']:.0f} median  |  "
+        f"${price['min']:.0f}-{price['max']:.0f} range  |  "
+        f"${price['mean']:.0f} avg"
+    )
+
+    # Frequency
+    freq = stats["frequency"]
+    if freq["avg_days_between"]:
+        console.print(
+            f"[bold]Frequency:[/bold]  "
+            f"~1 listing every {freq['avg_days_between']:.0f} days"
+        )
+
+    # Trend
+    console.print(f"[bold]Trend:[/bold]      {stats['trend'].capitalize()}")
+    console.print()
+
+    # Recommendation
+    if rec.get("good_deal_threshold"):
+        console.print(
+            f"[green]Recommendation:[/green] A price under "
+            f"${rec['good_deal_threshold']:.0f} is a good deal (bottom 20%)"
+        )
+
+    # Target price prediction
+    if target_price and rec.get("expected_wait_days"):
+        console.print(
+            f"[green]Target ${target_price:.0f}:[/green] "
+            f"~{rec['target_percentile']:.0f}th percentile, "
+            f"expected wait ~{rec['expected_wait_days']:.0f} days"
+        )
+
     db.close()
 
 

@@ -112,3 +112,21 @@ def test_cli_fetch_specific_search_not_found(runner, temp_db):
     result = runner.invoke(app, ["fetch", "Nonexistent"])
 
     assert result.exit_code == 1 or "not found" in result.stdout.lower()
+
+
+def test_cli_analyze_no_data(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    runner.invoke(app, ["add", "Test Search"])
+    result = runner.invoke(app, ["analyze", "Test Search"])
+
+    assert result.exit_code == 0
+    assert "no data" in result.stdout.lower() or "0" in result.stdout
+
+
+def test_cli_analyze_not_found(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    result = runner.invoke(app, ["analyze", "Nonexistent"])
+
+    assert result.exit_code == 1 or "not found" in result.stdout.lower()
