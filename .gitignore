@@ -5,6 +5,11 @@ __pycache__/
 .venv/
 venv/
 .env
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
 
 # Project
 data/
@@ -14,6 +19,8 @@ data/
 .idea/
 .vscode/
 *.swp
+.DS_Store
 
 # uv
 .python-version
+uv.lock
