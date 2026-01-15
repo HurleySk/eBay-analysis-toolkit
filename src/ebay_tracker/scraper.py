@@ -73,7 +73,85 @@ def parse_listings(html: str, search_id: int) -> list[Listing]:
     soup = BeautifulSoup(html, "lxml")
     listings = []
 
-    for item in soup.select("li.s-item"):
+    # Try new s-card format first (2025+), then fall back to old s-item format
+    items = soup.select("li.s-card")
+    if items:
+        listings = _parse_s_card_items(items, search_id)
+    else:
+        items = soup.select("li.s-item")
+        listings = _parse_s_item_items(items, search_id)
+
+    return listings
+
+
+def _parse_s_card_items(items, search_id: int) -> list[Listing]:
+    """Parse new eBay s-card format (2025+)."""
+    listings = []
+
+    for item in items:
+        # Get item ID from data attribute
+        item_id = item.get("data-listingid")
+        if not item_id:
+            continue
+
+        # Extract title
+        title_elem = item.select_one(".s-card__title")
+        if not title_elem:
+            continue
+        title = title_elem.get_text(strip=True)
+
+        # Extract URL
+        link_elem = item.select_one("a[href*='/itm/']")
+        url = link_elem.get("href") if link_elem else None
+
+        # Extract price (s-card__price class)
+        price_elem = item.select_one(".s-card__price")
+        price_text = price_elem.get_text(strip=True) if price_elem else "0"
+        price = parse_price(price_text)
+
+        # Extract shipping - look for shipping-related text
+        shipping = 0.0
+        shipping_elem = item.select_one("[class*='shipping'], [class*='delivery']")
+        if shipping_elem:
+            shipping_text = shipping_elem.get_text(strip=True)
+            shipping = parse_shipping(shipping_text)
+
+        # Extract condition - often in a secondary info span
+        condition = None
+        condition_elem = item.select_one(".s-card__subtitle, .SECONDARY_INFO")
+        if condition_elem:
+            condition = condition_elem.get_text(strip=True)
+
+        # Extract sold date - class "positive" often contains sold info
+        sold_date = None
+        # Look for text containing "Sold" or "Vendido" (Spanish/Portuguese)
+        for elem in item.find_all(class_="positive"):
+            text = elem.get_text(strip=True)
+            if "sold" in text.lower() or "vendido" in text.lower():
+                sold_date = parse_sold_date(text)
+                break
+
+        listings.append(Listing(
+            id=None,
+            search_id=search_id,
+            ebay_item_id=item_id,
+            title=title,
+            price=price,
+            shipping=shipping,
+            condition=condition,
+            sold_date=sold_date,
+            url=url,
+            created_at=None,
+        ))
+
+    return listings
+
+
+def _parse_s_item_items(items, search_id: int) -> list[Listing]:
+    """Parse old eBay s-item format (pre-2025)."""
+    listings = []
+
+    for item in items:
         # Skip "shop on eBay" promotional items
         title_elem = item.select_one(".s-item__title")
         if not title_elem:
