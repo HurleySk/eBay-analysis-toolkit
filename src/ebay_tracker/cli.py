@@ -147,7 +147,7 @@ def status():
     console.print()
 
     # Proxy status
-    console.print(f"[cyan]Proxy:[/cyan]", end=" ")
+    console.print("[cyan]Proxy:[/cyan]", end=" ")
     if config.proxy_url:
         # Mask credentials in URL
         masked = config.proxy_url.split("@")[-1] if "@" in config.proxy_url else config.proxy_url

@@ -2,7 +2,6 @@ import pytest
 from typer.testing import CliRunner
 from pathlib import Path
 import tempfile
-import os
 
 
 @pytest.fixture

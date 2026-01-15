@@ -1,4 +1,3 @@
-from datetime import date
 
 import pandas as pd
 import numpy as np
@@ -26,7 +25,7 @@ def analyze_listings(listings: list[Listing]) -> dict:
             "trend": "unknown",
         }
 
-    prices = [l.price for l in listings]
+    prices = [listing.price for listing in listings]
     df = pd.DataFrame({"price": prices})
 
     # Price statistics
@@ -66,7 +65,7 @@ def calculate_frequency(listings: list[Listing]) -> dict:
         }
 
     # Get listings with valid dates
-    dated_listings = [l for l in listings if l.sold_date]
+    dated_listings = [lst for lst in listings if lst.sold_date]
     if len(dated_listings) < 2:
         return {
             "avg_days_between": None,
@@ -74,7 +73,7 @@ def calculate_frequency(listings: list[Listing]) -> dict:
         }
 
     # Sort by date
-    dates = sorted([l.sold_date for l in dated_listings])
+    dates = sorted([lst.sold_date for lst in dated_listings])
 
     # Calculate days between listings
     total_days = (dates[-1] - dates[0]).days
@@ -101,7 +100,7 @@ def calculate_trend(listings: list[Listing]) -> str:
         return "stable"
 
     # Get listings with dates, sorted chronologically
-    dated = [(l.sold_date, l.price) for l in listings if l.sold_date]
+    dated = [(lst.sold_date, lst.price) for lst in listings if lst.sold_date]
     if len(dated) < 3:
         return "stable"
 
@@ -130,7 +129,7 @@ def get_price_percentile(listings: list[Listing], target_price: float) -> float:
     if not listings:
         return 0.0
 
-    prices = sorted([l.price for l in listings])
+    prices = sorted([listing.price for listing in listings])
     below = sum(1 for p in prices if p < target_price)
     return below / len(prices)
 

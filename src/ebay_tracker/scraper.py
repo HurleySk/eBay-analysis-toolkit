@@ -2,7 +2,7 @@ import random
 import re
 import time
 from datetime import date, datetime
-from urllib.parse import urlencode, quote_plus
+from urllib.parse import urlencode
 
 import httpx
 from bs4 import BeautifulSoup

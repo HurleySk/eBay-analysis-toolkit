@@ -25,9 +25,6 @@ def temp_env(monkeypatch):
 def test_full_workflow_with_mock_data(runner, temp_env, monkeypatch):
     """Test complete workflow: add -> (mock) fetch -> analyze."""
     from ebay_tracker.cli import app
-    from ebay_tracker import scraper
-    from ebay_tracker.models import Listing
-    from datetime import date
 
     # Mock the fetch_page function to return test data
     def mock_fetch_page(url, proxy_url=None):
