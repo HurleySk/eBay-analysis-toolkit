@@ -7,7 +7,8 @@ from rich.table import Table
 
 from ebay_tracker.config import get_config
 from ebay_tracker.db import Database
-from ebay_tracker.models import Search
+from ebay_tracker.models import Search, FetchLog
+from ebay_tracker.scraper import build_search_url, fetch_page, parse_listings, rate_limit_delay
 
 app = typer.Typer(
     name="ebay-tracker",
@@ -151,6 +152,81 @@ def status():
     else:
         console.print("[yellow]Not configured[/yellow]")
         console.print("  [dim]Set DECODO_PROXY_URL in .env[/dim]")
+
+
+@app.command()
+def fetch(
+    name: Optional[str] = typer.Argument(None, help="Name of search to fetch (all if not specified)"),
+    days: int = typer.Option(90, "--days", "-d", help="How many days back to fetch"),
+):
+    """Fetch new listings from eBay."""
+    config = get_config()
+    db = get_db()
+
+    if name:
+        search = db.get_search_by_name(name)
+        if not search:
+            console.print(f"[red]Search '{name}' not found[/red]")
+            db.close()
+            raise typer.Exit(1)
+        searches = [search]
+    else:
+        searches = db.get_all_searches()
+
+    if not searches:
+        console.print("[dim]No searches to fetch. Use 'add' to create one.[/dim]")
+        db.close()
+        return
+
+    if not config.proxy_url:
+        console.print("[yellow]Warning: No proxy configured. Requests may be blocked.[/yellow]")
+        console.print("[dim]Set DECODO_PROXY_URL in .env for better reliability.[/dim]")
+        console.print()
+
+    total_new = 0
+
+    for search in searches:
+        console.print(f"[cyan]Fetching:[/cyan] {search.name}")
+
+        try:
+            url = build_search_url(search.query, search.filters)
+            html = fetch_page(url, config.proxy_url)
+            listings = parse_listings(html, search.id)
+
+            new_count = 0
+            for listing in listings:
+                if db.add_listing(listing):
+                    new_count += 1
+
+            db.update_search_last_fetched(search.id)
+            db.add_fetch_log(FetchLog(
+                id=None,
+                search_id=search.id,
+                fetched_at=None,
+                listings_found=len(listings),
+                status="success",
+            ))
+
+            console.print(f"  Found {len(listings)} listings, {new_count} new")
+            total_new += new_count
+
+        except Exception as e:
+            console.print(f"  [red]Error: {e}[/red]")
+            db.add_fetch_log(FetchLog(
+                id=None,
+                search_id=search.id,
+                fetched_at=None,
+                listings_found=0,
+                status=f"error: {e}",
+            ))
+
+        # Rate limit between searches
+        if len(searches) > 1 and search != searches[-1]:
+            rate_limit_delay()
+
+    console.print()
+    console.print(f"[green]Done![/green] {total_new} new listings added")
+    db.close()
 
 
 if __name__ == "__main__":

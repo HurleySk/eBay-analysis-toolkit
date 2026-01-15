@@ -95,3 +95,20 @@ def test_cli_status(runner, temp_db):
     result = runner.invoke(app, ["status"])
 
     assert result.exit_code == 0
+
+
+def test_cli_fetch_no_searches(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    result = runner.invoke(app, ["fetch"])
+
+    assert result.exit_code == 0
+    assert "no searches" in result.stdout.lower()
+
+
+def test_cli_fetch_specific_search_not_found(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    result = runner.invoke(app, ["fetch", "Nonexistent"])
+
+    assert result.exit_code == 1 or "not found" in result.stdout.lower()
