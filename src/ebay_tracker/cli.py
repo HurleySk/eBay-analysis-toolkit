@@ -29,6 +29,15 @@ def get_db() -> Database:
     return db
 
 
+def parse_multi_value(value: str | None) -> str | list[str] | None:
+    """Parse comma-separated values into a list, or return single value."""
+    if value is None:
+        return None
+    if "," in value:
+        return [v.strip() for v in value.split(",")]
+    return value
+
+
 @app.command()
 def add(
     name: str = typer.Argument(..., help="Name for this search"),
@@ -37,9 +46,9 @@ def add(
     min_price: Optional[float] = typer.Option(None, "--min-price", help="Minimum price filter"),
     max_price: Optional[float] = typer.Option(None, "--max-price", help="Maximum price filter"),
     category: Optional[int] = typer.Option(None, "--category", "-cat", help="eBay category ID (e.g., 11483 for Men's Jeans)"),
-    color: Optional[str] = typer.Option(None, "--color", help="Color filter (Blue, Black, etc.)"),
-    size: Optional[str] = typer.Option(None, "--size", help="Waist size (30, 32, 34, etc.)"),
-    inseam: Optional[str] = typer.Option(None, "--inseam", help="Inseam length (28, 30, 32, etc.)"),
+    color: Optional[str] = typer.Option(None, "--color", help="Color filter (comma-separated for multiple: Blue,Pink,White)"),
+    size: Optional[str] = typer.Option(None, "--size", help="Size filter (comma-separated for multiple: S,M,L)"),
+    inseam: Optional[str] = typer.Option(None, "--inseam", help="Inseam length (comma-separated for multiple: 30,32)"),
     size_type: Optional[str] = typer.Option(None, "--size-type", help="Size type (Regular, Big & Tall)"),
 ):
     """Add a new search to track."""
@@ -61,13 +70,13 @@ def add(
     if category is not None:
         filters["category"] = category
     if color:
-        filters["color"] = color
+        filters["color"] = parse_multi_value(color)
     if size:
-        filters["size"] = size
+        filters["size"] = parse_multi_value(size)
     if inseam:
-        filters["inseam"] = inseam
+        filters["inseam"] = parse_multi_value(inseam)
     if size_type:
-        filters["size_type"] = size_type
+        filters["size_type"] = parse_multi_value(size_type)
 
     search = Search(
         id=None,
@@ -147,9 +156,9 @@ def edit(
     min_price: Optional[float] = typer.Option(None, "--min-price", help="Minimum price filter"),
     max_price: Optional[float] = typer.Option(None, "--max-price", help="Maximum price filter"),
     category: Optional[int] = typer.Option(None, "--category", "-cat", help="eBay category ID"),
-    color: Optional[str] = typer.Option(None, "--color", help="Color filter"),
-    size: Optional[str] = typer.Option(None, "--size", help="Waist size"),
-    inseam: Optional[str] = typer.Option(None, "--inseam", help="Inseam length"),
+    color: Optional[str] = typer.Option(None, "--color", help="Color filter (comma-separated for multiple)"),
+    size: Optional[str] = typer.Option(None, "--size", help="Size filter (comma-separated for multiple)"),
+    inseam: Optional[str] = typer.Option(None, "--inseam", help="Inseam length (comma-separated for multiple)"),
     size_type: Optional[str] = typer.Option(None, "--size-type", help="Size type"),
     clear_filters: bool = typer.Option(False, "--clear-filters", help="Remove all filters"),
 ):
@@ -181,13 +190,13 @@ def edit(
     if category is not None:
         new_filters["category"] = category
     if color is not None:
-        new_filters["color"] = color
+        new_filters["color"] = parse_multi_value(color)
     if size is not None:
-        new_filters["size"] = size
+        new_filters["size"] = parse_multi_value(size)
     if inseam is not None:
-        new_filters["inseam"] = inseam
+        new_filters["inseam"] = parse_multi_value(inseam)
     if size_type is not None:
-        new_filters["size_type"] = size_type
+        new_filters["size_type"] = parse_multi_value(size_type)
 
     # Check if anything changed
     filters_changed = new_filters != (search.filters or {})

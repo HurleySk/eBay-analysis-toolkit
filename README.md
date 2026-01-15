@@ -55,6 +55,11 @@ ebay-tracker add "Levi's 501" \
   --inseam 30 \
   --condition Pre-owned \
   --max-price 100
+
+# With multiple colors (comma-separated)
+ebay-tracker add "gitman vintage oxford" \
+  --size Medium \
+  --color "Blue,Pink,White"
 ```
 
 ### Fetch listings
@@ -141,9 +146,9 @@ ebay-tracker status
 | `--min-price` | Minimum price | `20` |
 | `--max-price` | Maximum price | `100` |
 | `--category` | eBay category ID | `11483` (Men's Jeans) |
-| `--color` | Color filter | `Blue`, `Black` |
-| `--size` | Waist size | `30`, `32`, `34` |
-| `--inseam` | Inseam length | `28`, `30`, `32` |
+| `--color` | Color filter (comma-separated for multiple) | `Blue` or `Blue,Pink,White` |
+| `--size` | Size filter (comma-separated for multiple) | `32` or `S,M,L` |
+| `--inseam` | Inseam length (comma-separated for multiple) | `30` or `30,32` |
 | `--size-type` | Size type | `Regular`, `Big & Tall` |
 
 ### Common Category IDs

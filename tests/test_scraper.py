@@ -107,6 +107,28 @@ def test_build_search_url_with_page():
     assert "_udhi=100" in url
 
 
+def test_build_search_url_with_multiple_colors():
+    from ebay_tracker.scraper import build_search_url
+
+    # Multiple colors as list
+    url = build_search_url("test", filters={"color": ["Blue", "Pink", "White"]})
+    # Pipe is URL-encoded as %7C
+    assert "Color=Blue%7CPink%7CWhite" in url
+    assert "rt=nc" in url
+
+    # Single color still works
+    url = build_search_url("test", filters={"color": "Blue"})
+    assert "Color=Blue" in url
+    assert "%7C" not in url  # No pipe for single value
+
+
+def test_build_search_url_with_multiple_sizes():
+    from ebay_tracker.scraper import build_search_url
+
+    url = build_search_url("test", filters={"size": ["S", "M", "L"]})
+    assert "Size=S%7CM%7CL" in url
+
+
 def test_extract_item_id_from_url():
     from ebay_tracker.scraper import extract_item_id
 

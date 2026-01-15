@@ -48,18 +48,23 @@ def build_search_url(query: str, filters: dict | None = None, page: int = 1) -> 
             params["_sacat"] = str(filters["category"])
 
         # Aspect filters (color, size, inseam, size_type)
+        # These can be single values or lists for multiple values
         aspect_filters = []
         if "color" in filters:
-            params["Color"] = filters["color"]
+            color_val = filters["color"]
+            params["Color"] = "|".join(color_val) if isinstance(color_val, list) else color_val
             aspect_filters.append(True)
         if "size" in filters:
-            params["Size"] = filters["size"]
+            size_val = filters["size"]
+            params["Size"] = "|".join(size_val) if isinstance(size_val, list) else size_val
             aspect_filters.append(True)
         if "inseam" in filters:
-            params["Inseam"] = filters["inseam"]
+            inseam_val = filters["inseam"]
+            params["Inseam"] = "|".join(inseam_val) if isinstance(inseam_val, list) else inseam_val
             aspect_filters.append(True)
         if "size_type" in filters:
-            params["Size Type"] = filters["size_type"]
+            size_type_val = filters["size_type"]
+            params["Size Type"] = "|".join(size_type_val) if isinstance(size_type_val, list) else size_type_val
             aspect_filters.append(True)
 
         # rt=nc is required when using aspect filters
@@ -125,6 +130,10 @@ def _parse_s_card_items(items, search_id: int) -> list[Listing]:
         if not title_elem:
             continue
         title = title_elem.get_text(strip=True)
+
+        # Skip "Shop on eBay" promotional items
+        if title.lower() == "shop on ebay":
+            continue
 
         # Extract URL
         link_elem = item.select_one("a[href*='/itm/']")
