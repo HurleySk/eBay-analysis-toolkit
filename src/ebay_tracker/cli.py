@@ -36,6 +36,11 @@ def add(
     condition: Optional[str] = typer.Option(None, "--condition", "-c", help="Item condition filter"),
     min_price: Optional[float] = typer.Option(None, "--min-price", help="Minimum price filter"),
     max_price: Optional[float] = typer.Option(None, "--max-price", help="Maximum price filter"),
+    category: Optional[int] = typer.Option(None, "--category", "-cat", help="eBay category ID (e.g., 11483 for Men's Jeans)"),
+    color: Optional[str] = typer.Option(None, "--color", help="Color filter (Blue, Black, etc.)"),
+    size: Optional[str] = typer.Option(None, "--size", help="Waist size (30, 32, 34, etc.)"),
+    inseam: Optional[str] = typer.Option(None, "--inseam", help="Inseam length (28, 30, 32, etc.)"),
+    size_type: Optional[str] = typer.Option(None, "--size-type", help="Size type (Regular, Big & Tall)"),
 ):
     """Add a new search to track."""
     db = get_db()
@@ -53,6 +58,16 @@ def add(
         filters["min_price"] = min_price
     if max_price is not None:
         filters["max_price"] = max_price
+    if category is not None:
+        filters["category"] = category
+    if color:
+        filters["color"] = color
+    if size:
+        filters["size"] = size
+    if inseam:
+        filters["inseam"] = inseam
+    if size_type:
+        filters["size_type"] = size_type
 
     search = Search(
         id=None,
@@ -122,6 +137,80 @@ def remove(
     console.print(f"[green]Removed search:[/green] {name}")
     if listing_count > 0:
         console.print(f"  [dim]Deleted {listing_count} listings[/dim]")
+
+
+@app.command()
+def edit(
+    name: str = typer.Argument(..., help="Name of search to edit"),
+    query: Optional[str] = typer.Option(None, "--query", "-q", help="New search query"),
+    condition: Optional[str] = typer.Option(None, "--condition", "-c", help="Item condition filter"),
+    min_price: Optional[float] = typer.Option(None, "--min-price", help="Minimum price filter"),
+    max_price: Optional[float] = typer.Option(None, "--max-price", help="Maximum price filter"),
+    category: Optional[int] = typer.Option(None, "--category", "-cat", help="eBay category ID"),
+    color: Optional[str] = typer.Option(None, "--color", help="Color filter"),
+    size: Optional[str] = typer.Option(None, "--size", help="Waist size"),
+    inseam: Optional[str] = typer.Option(None, "--inseam", help="Inseam length"),
+    size_type: Optional[str] = typer.Option(None, "--size-type", help="Size type"),
+    clear_filters: bool = typer.Option(False, "--clear-filters", help="Remove all filters"),
+):
+    """Edit an existing search's query or filters."""
+    db = get_db()
+
+    search = db.get_search_by_name(name)
+    if not search:
+        console.print(f"[red]Search '{name}' not found[/red]")
+        db.close()
+        raise typer.Exit(1)
+
+    # Handle clear filters
+    if clear_filters:
+        db.update_search(search.id, filters={})
+        db.close()
+        console.print(f"[green]Cleared all filters for:[/green] {name}")
+        return
+
+    # Build updated filters (merge with existing)
+    new_filters = search.filters.copy() if search.filters else {}
+
+    if condition is not None:
+        new_filters["condition"] = condition
+    if min_price is not None:
+        new_filters["min_price"] = min_price
+    if max_price is not None:
+        new_filters["max_price"] = max_price
+    if category is not None:
+        new_filters["category"] = category
+    if color is not None:
+        new_filters["color"] = color
+    if size is not None:
+        new_filters["size"] = size
+    if inseam is not None:
+        new_filters["inseam"] = inseam
+    if size_type is not None:
+        new_filters["size_type"] = size_type
+
+    # Check if anything changed
+    filters_changed = new_filters != (search.filters or {})
+    query_changed = query is not None and query != search.query
+
+    if not filters_changed and not query_changed:
+        console.print("[yellow]No changes specified[/yellow]")
+        db.close()
+        return
+
+    # Apply updates
+    db.update_search(
+        search.id,
+        query=query if query_changed else None,
+        filters=new_filters if filters_changed else None,
+    )
+    db.close()
+
+    console.print(f"[green]Updated search:[/green] {name}")
+    if query_changed:
+        console.print(f"  Query: {query}")
+    if filters_changed:
+        console.print(f"  Filters: {new_filters}")
 
 
 @app.command()

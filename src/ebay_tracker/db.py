@@ -116,6 +116,29 @@ class Database:
         )
         self.conn.commit()
 
+    def update_search(self, search_id: int, query: str | None = None, filters: dict | None = None) -> None:
+        """Update a search's query and/or filters."""
+        updates = []
+        params = []
+
+        if query is not None:
+            updates.append("query = ?")
+            params.append(query)
+
+        if filters is not None:
+            updates.append("filters = ?")
+            params.append(json.dumps(filters) if filters else None)
+
+        if not updates:
+            return
+
+        params.append(search_id)
+        self.conn.execute(
+            f"UPDATE searches SET {', '.join(updates)} WHERE id = ?",
+            params,
+        )
+        self.conn.commit()
+
     def add_listing(self, listing: Listing) -> int | None:
         """Add a listing. Returns listing ID or None if duplicate."""
         try:

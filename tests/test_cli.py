@@ -154,3 +154,66 @@ def test_cli_export_not_found(runner, temp_db):
     result = runner.invoke(app, ["export", "Nonexistent"])
 
     assert result.exit_code == 1 or "not found" in result.stdout.lower()
+
+
+def test_cli_add_with_new_filters(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    result = runner.invoke(app, [
+        "add", "Filtered Search",
+        "--category", "11483",
+        "--color", "Blue",
+        "--size", "32",
+        "--inseam", "30",
+    ])
+
+    assert result.exit_code == 0
+    assert "Added" in result.stdout
+
+
+def test_cli_edit_not_found(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    result = runner.invoke(app, ["edit", "Nonexistent", "--color", "Blue"])
+
+    assert result.exit_code == 1 or "not found" in result.stdout.lower()
+
+
+def test_cli_edit_filters(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    # Add a search first
+    runner.invoke(app, ["add", "Test Search"])
+
+    # Edit to add a filter
+    result = runner.invoke(app, ["edit", "Test Search", "--color", "Blue"])
+
+    assert result.exit_code == 0
+    assert "Updated" in result.stdout
+    assert "color" in result.stdout.lower()
+
+
+def test_cli_edit_clear_filters(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    # Add a search with filters
+    runner.invoke(app, ["add", "Test Search", "--color", "Blue"])
+
+    # Clear all filters
+    result = runner.invoke(app, ["edit", "Test Search", "--clear-filters"])
+
+    assert result.exit_code == 0
+    assert "Cleared" in result.stdout
+
+
+def test_cli_edit_no_changes(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    # Add a search
+    runner.invoke(app, ["add", "Test Search"])
+
+    # Edit with no changes
+    result = runner.invoke(app, ["edit", "Test Search"])
+
+    assert result.exit_code == 0
+    assert "No changes" in result.stdout

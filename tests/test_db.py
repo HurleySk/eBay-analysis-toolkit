@@ -169,3 +169,27 @@ def test_delete_search_cascades_to_listings(temp_db):
 
     assert temp_db.get_search_by_name("Test Search") is None
     assert len(temp_db.get_listings_for_search(search_id)) == 0
+
+
+def test_update_search(temp_db):
+    from ebay_tracker.models import Search
+
+    search = Search(None, "Test Search", "original query", {"color": "Blue"}, None, None)
+    search_id = temp_db.add_search(search)
+
+    # Update query
+    temp_db.update_search(search_id, query="new query")
+    updated = temp_db.get_search_by_id(search_id)
+    assert updated.query == "new query"
+    assert updated.filters == {"color": "Blue"}  # Filters unchanged
+
+    # Update filters
+    temp_db.update_search(search_id, filters={"color": "Black", "size": "32"})
+    updated = temp_db.get_search_by_id(search_id)
+    assert updated.query == "new query"  # Query unchanged
+    assert updated.filters == {"color": "Black", "size": "32"}
+
+    # Clear filters
+    temp_db.update_search(search_id, filters={})
+    updated = temp_db.get_search_by_id(search_id)
+    assert updated.filters is None or updated.filters == {}

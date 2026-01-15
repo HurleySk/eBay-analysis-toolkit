@@ -40,6 +40,29 @@ def build_search_url(query: str, filters: dict | None = None) -> str:
             elif condition in ("pre-owned", "used"):
                 params["LH_ItemCondition"] = "3000"
 
+        # Category filter
+        if "category" in filters:
+            params["_sacat"] = str(filters["category"])
+
+        # Aspect filters (color, size, inseam, size_type)
+        aspect_filters = []
+        if "color" in filters:
+            params["Color"] = filters["color"]
+            aspect_filters.append(True)
+        if "size" in filters:
+            params["Size"] = filters["size"]
+            aspect_filters.append(True)
+        if "inseam" in filters:
+            params["Inseam"] = filters["inseam"]
+            aspect_filters.append(True)
+        if "size_type" in filters:
+            params["Size Type"] = filters["size_type"]
+            aspect_filters.append(True)
+
+        # rt=nc is required when using aspect filters
+        if aspect_filters:
+            params["rt"] = "nc"
+
     return f"https://www.ebay.com/sch/i.html?{urlencode(params)}"
 
 

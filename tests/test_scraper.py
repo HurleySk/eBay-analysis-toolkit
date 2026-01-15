@@ -64,6 +64,29 @@ def test_build_search_url_with_filters():
     assert "LH_ItemCondition=" in url or "LH_PrefLoc" in url or "udhi=" in url
 
 
+def test_build_search_url_with_category():
+    from ebay_tracker.scraper import build_search_url
+
+    url = build_search_url("Levi's 501", filters={"category": 11483})
+
+    assert "_sacat=11483" in url
+
+
+def test_build_search_url_with_aspect_filters():
+    from ebay_tracker.scraper import build_search_url
+
+    url = build_search_url("Levi's 501", filters={
+        "color": "Blue",
+        "size": "32",
+        "inseam": "30",
+    })
+
+    assert "Color=Blue" in url
+    assert "Size=32" in url
+    assert "Inseam=30" in url
+    assert "rt=nc" in url  # Required for aspect filters
+
+
 def test_extract_item_id_from_url():
     from ebay_tracker.scraper import extract_item_id
 
