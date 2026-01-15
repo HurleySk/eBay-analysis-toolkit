@@ -23,4 +23,8 @@ data/
 
 # uv
 .python-version
-uv.lock
+
+# Node (if any JS tooling is used)
+node_modules/
+package.json
+package-lock.json
