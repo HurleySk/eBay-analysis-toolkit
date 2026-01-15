@@ -1,3 +1,5 @@
+import csv
+from io import StringIO
 from pathlib import Path
 from typing import Optional
 
@@ -295,6 +297,105 @@ def analyze(
             f"~{rec['target_percentile']:.0f}th percentile, "
             f"expected wait ~{rec['expected_wait_days']:.0f} days"
         )
+
+    db.close()
+
+
+@app.command()
+def history(
+    name: str = typer.Argument(..., help="Name of search to show history for"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of listings to show"),
+):
+    """Show listing history for a search."""
+    db = get_db()
+
+    search = db.get_search_by_name(name)
+    if not search:
+        console.print(f"[red]Search '{name}' not found[/red]")
+        db.close()
+        raise typer.Exit(1)
+
+    listings = db.get_listings_for_search(search.id)
+
+    if not listings:
+        console.print(f"[yellow]{search.name}[/yellow] - No listings")
+        console.print("[dim]Run 'fetch' to collect listings first.[/dim]")
+        db.close()
+        return
+
+    table = Table(title=f"Recent Sales: {search.name}")
+    table.add_column("Date", style="dim")
+    table.add_column("Title")
+    table.add_column("Price", justify="right", style="green")
+    table.add_column("Ship", justify="right", style="dim")
+    table.add_column("Condition", style="dim")
+
+    for listing in listings[:limit]:
+        date_str = listing.sold_date.strftime("%Y-%m-%d") if listing.sold_date else "-"
+        title = listing.title[:50] + "..." if len(listing.title) > 50 else listing.title
+        shipping = f"${listing.shipping:.2f}" if listing.shipping else "Free"
+
+        table.add_row(
+            date_str,
+            title,
+            f"${listing.price:.2f}",
+            shipping,
+            listing.condition or "-",
+        )
+
+    console.print(table)
+
+    if len(listings) > limit:
+        console.print(f"[dim]Showing {limit} of {len(listings)} listings. Use --limit to see more.[/dim]")
+
+    db.close()
+
+
+@app.command()
+def export(
+    name: str = typer.Argument(..., help="Name of search to export"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (default: stdout)"),
+):
+    """Export listings to CSV."""
+    db = get_db()
+
+    search = db.get_search_by_name(name)
+    if not search:
+        console.print(f"[red]Search '{name}' not found[/red]")
+        db.close()
+        raise typer.Exit(1)
+
+    listings = db.get_listings_for_search(search.id)
+
+    if not listings:
+        console.print(f"[yellow]{search.name}[/yellow] - No listings to export")
+        db.close()
+        return
+
+    # Build CSV
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["date", "title", "price", "shipping", "total", "condition", "url", "ebay_item_id"])
+
+    for listing in listings:
+        writer.writerow([
+            listing.sold_date.isoformat() if listing.sold_date else "",
+            listing.title,
+            listing.price,
+            listing.shipping or 0,
+            listing.total_price,
+            listing.condition or "",
+            listing.url or "",
+            listing.ebay_item_id,
+        ])
+
+    csv_content = buffer.getvalue()
+
+    if output:
+        output.write_text(csv_content)
+        console.print(f"[green]Exported {len(listings)} listings to {output}[/green]")
+    else:
+        print(csv_content)
 
     db.close()
 

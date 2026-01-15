@@ -130,3 +130,28 @@ def test_cli_analyze_not_found(runner, temp_db):
     result = runner.invoke(app, ["analyze", "Nonexistent"])
 
     assert result.exit_code == 1 or "not found" in result.stdout.lower()
+
+
+def test_cli_history_not_found(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    result = runner.invoke(app, ["history", "Nonexistent"])
+
+    assert result.exit_code == 1 or "not found" in result.stdout.lower()
+
+
+def test_cli_history_empty(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    runner.invoke(app, ["add", "Test Search"])
+    result = runner.invoke(app, ["history", "Test Search"])
+
+    assert result.exit_code == 0
+
+
+def test_cli_export_not_found(runner, temp_db):
+    from ebay_tracker.cli import app
+
+    result = runner.invoke(app, ["export", "Nonexistent"])
+
+    assert result.exit_code == 1 or "not found" in result.stdout.lower()
