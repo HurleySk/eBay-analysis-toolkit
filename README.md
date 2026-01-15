@@ -60,17 +60,12 @@ ebay-tracker add "Levi's 501" \
 ### Fetch listings
 
 ```bash
-# Fetch all searches (1 page each, ~240 items max)
+# Fetch all searches
 ebay-tracker fetch
 
 # Fetch specific search
 ebay-tracker fetch "Levi's 501 32x30"
-
-# Fetch multiple pages for more listings
-ebay-tracker fetch "Levi's 501 32x30" --pages 5
 ```
-
-Note: Each page contains up to 240 listings. Fetching >10 pages requires confirmation.
 
 ### Analyze prices
 

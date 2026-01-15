@@ -249,17 +249,11 @@ def status():
 @app.command()
 def fetch(
     name: Optional[str] = typer.Argument(None, help="Name of search to fetch (all if not specified)"),
-    pages: int = typer.Option(1, "--pages", "-p", help="Number of pages to fetch (max 240 items each)"),
+    days: int = typer.Option(90, "--days", "-d", help="How many days back to fetch"),
 ):
     """Fetch new listings from eBay."""
     config = get_config()
     db = get_db()
-
-    # Warn and require confirmation for >10 pages
-    if pages > 10:
-        console.print(f"[yellow]Warning: Fetching {pages} pages will make many requests.[/yellow]")
-        if not typer.confirm("Continue?"):
-            raise typer.Exit(0)
 
     if name:
         search = db.get_search_by_name(name)
@@ -286,31 +280,13 @@ def fetch(
     for search in searches:
         console.print(f"[cyan]Fetching:[/cyan] {search.name}")
 
-        all_listings = []
         try:
-            for page_num in range(1, pages + 1):
-                if pages > 1:
-                    console.print(f"  Page {page_num}/{pages}...", end=" ")
-
-                url = build_search_url(search.query, search.filters, page=page_num)
-                html = fetch_page(url, config.proxy_url)
-                page_listings = parse_listings(html, search.id)
-
-                if pages > 1:
-                    console.print(f"{len(page_listings)} listings")
-
-                all_listings.extend(page_listings)
-
-                # Stop early if page returned few results (no more pages)
-                if len(page_listings) < 200:
-                    break
-
-                # Rate limit between pages
-                if page_num < pages:
-                    rate_limit_delay()
+            url = build_search_url(search.query, search.filters)
+            html = fetch_page(url, config.proxy_url)
+            listings = parse_listings(html, search.id)
 
             new_count = 0
-            for listing in all_listings:
+            for listing in listings:
                 if db.add_listing(listing):
                     new_count += 1
 
@@ -319,11 +295,11 @@ def fetch(
                 id=None,
                 search_id=search.id,
                 fetched_at=None,
-                listings_found=len(all_listings),
+                listings_found=len(listings),
                 status="success",
             ))
 
-            console.print(f"  Found {len(all_listings)} listings, {new_count} new")
+            console.print(f"  Found {len(listings)} listings, {new_count} new")
             total_new += new_count
 
         except Exception as e:

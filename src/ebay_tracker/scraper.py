@@ -19,7 +19,7 @@ USER_AGENTS = [
 ]
 
 
-def build_search_url(query: str, filters: dict | None = None, page: int = 1) -> str:
+def build_search_url(query: str, filters: dict | None = None) -> str:
     """Build eBay sold listings search URL."""
     params = {
         "_nkw": query,
@@ -27,9 +27,6 @@ def build_search_url(query: str, filters: dict | None = None, page: int = 1) -> 
         "LH_Sold": "1",
         "_ipg": "240",  # Max results per page
     }
-
-    if page > 1:
-        params["_pgn"] = str(page)
 
     if filters:
         if "max_price" in filters:
