@@ -185,8 +185,8 @@ def test_cli_edit_filters(runner, temp_db):
     # Add a search first
     runner.invoke(app, ["add", "Test Search"])
 
-    # Edit to add a filter
-    result = runner.invoke(app, ["edit", "Test Search", "--color", "Blue"])
+    # Edit to add a filter (include category to avoid wizard prompt)
+    result = runner.invoke(app, ["edit", "Test Search", "--color", "Blue", "--category", "11483"])
 
     assert result.exit_code == 0
     assert "Updated" in result.stdout
@@ -196,8 +196,8 @@ def test_cli_edit_filters(runner, temp_db):
 def test_cli_edit_clear_filters(runner, temp_db):
     from ebay_tracker.cli import app
 
-    # Add a search with filters
-    runner.invoke(app, ["add", "Test Search", "--color", "Blue"])
+    # Add a search with filters (include category to avoid wizard prompt)
+    runner.invoke(app, ["add", "Test Search", "--color", "Blue", "--category", "11483"])
 
     # Clear all filters
     result = runner.invoke(app, ["edit", "Test Search", "--clear-filters"])

@@ -19,7 +19,7 @@ USER_AGENTS = [
 ]
 
 
-def build_search_url(query: str, filters: dict | None = None, page: int = 1) -> str:
+def build_search_url(query: str, filters: dict | None = None) -> str:
     """Build eBay sold listings search URL."""
     params = {
         "_nkw": query,
@@ -27,9 +27,6 @@ def build_search_url(query: str, filters: dict | None = None, page: int = 1) -> 
         "LH_Sold": "1",
         "_ipg": "240",  # Max results per page
     }
-
-    if page > 1:
-        params["_pgn"] = str(page)
 
     if filters:
         if "max_price" in filters:
@@ -67,9 +64,10 @@ def build_search_url(query: str, filters: dict | None = None, page: int = 1) -> 
             params["Size Type"] = "|".join(size_type_val) if isinstance(size_type_val, list) else size_type_val
             aspect_filters.append(True)
 
-        # rt=nc is required when using aspect filters
+        # rt=nc and LH_SpecificOnly are required for aspect filters to be enforced
         if aspect_filters:
             params["rt"] = "nc"
+            params["LH_SpecificOnly"] = "1"
 
     return f"https://www.ebay.com/sch/i.html?{urlencode(params)}"
 

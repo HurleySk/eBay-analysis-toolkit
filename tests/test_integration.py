@@ -63,7 +63,6 @@ def test_full_workflow_with_mock_data(runner, temp_env, monkeypatch):
     # Patch where the functions are used, not where they're defined
     from ebay_tracker import cli
     monkeypatch.setattr(cli, "fetch_page", mock_fetch_page)
-    monkeypatch.setattr(cli, "rate_limit_delay", lambda: None)
 
     # 1. Add a search
     result = runner.invoke(app, ["add", "Test Search"])

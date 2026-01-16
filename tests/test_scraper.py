@@ -87,26 +87,6 @@ def test_build_search_url_with_aspect_filters():
     assert "rt=nc" in url  # Required for aspect filters
 
 
-def test_build_search_url_with_page():
-    from ebay_tracker.scraper import build_search_url
-
-    # Page 1 should not include _pgn param
-    url = build_search_url("test", page=1)
-    assert "_pgn" not in url
-
-    # Page 2+ should include _pgn param
-    url = build_search_url("test", page=2)
-    assert "_pgn=2" in url
-
-    url = build_search_url("test", page=5)
-    assert "_pgn=5" in url
-
-    # Should work with filters too
-    url = build_search_url("test", filters={"max_price": 100}, page=3)
-    assert "_pgn=3" in url
-    assert "_udhi=100" in url
-
-
 def test_build_search_url_with_multiple_colors():
     from ebay_tracker.scraper import build_search_url
 

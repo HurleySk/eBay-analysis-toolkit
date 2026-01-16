@@ -8,10 +8,11 @@ from rich.console import Console
 from rich.table import Table
 
 from ebay_tracker.analyzer import analyze_listings, get_recommendation
-from ebay_tracker.config import get_config
+from ebay_tracker.categories import get_categories_for_preference, search_categories
+from ebay_tracker.config import get_config, get_user_prefs, save_user_prefs
 from ebay_tracker.db import Database
 from ebay_tracker.models import Search, FetchLog
-from ebay_tracker.scraper import build_search_url, fetch_page, parse_listings, rate_limit_delay
+from ebay_tracker.scraper import build_search_url, fetch_page, parse_listings
 
 app = typer.Typer(
     name="ebay-tracker",
@@ -36,6 +37,62 @@ def parse_multi_value(value: str | None) -> str | list[str] | None:
     if "," in value:
         return [v.strip() for v in value.split(",")]
     return value
+
+
+def prompt_gender_preference() -> str:
+    """Prompt user for gender preference and save to config."""
+    console.print("\n[cyan]Which categories interest you?[/cyan]")
+    console.print("  [1] Men's clothing")
+    console.print("  [2] Women's clothing")
+    console.print("  [3] Both")
+
+    while True:
+        choice = typer.prompt("Select", default="1")
+        if choice in ("1", "2", "3"):
+            break
+        console.print("[red]Invalid selection. Enter 1, 2, or 3.[/red]")
+
+    pref = {"1": "mens", "2": "womens", "3": "both"}[choice]
+    prefs = get_user_prefs()
+    prefs.gender_preference = pref
+    save_user_prefs(prefs)
+    console.print("[green]Preference saved.[/green]")
+    return pref
+
+
+def prompt_category_selection(gender_pref: str) -> int:
+    """Interactive category selection with search."""
+    categories = get_categories_for_preference(gender_pref)
+
+    while True:
+        console.print("\n[cyan]Size/color filters require a category. Search or select:[/cyan]")
+        cat_list = list(categories.items())
+        for i, (cat_id, name) in enumerate(cat_list, 1):
+            console.print(f"  [{i}] {name} ({cat_id})")
+        console.print("  [s] Search categories")
+        console.print("  [m] Enter ID manually")
+
+        choice = typer.prompt("Select")
+
+        if choice.lower() == "s":
+            query = typer.prompt("Search")
+            results = search_categories(query, gender_pref)
+            if results:
+                categories = results
+                console.print(f"[dim]Found {len(results)} matches[/dim]")
+            else:
+                console.print("[yellow]No matches. Showing full list.[/yellow]")
+                categories = get_categories_for_preference(gender_pref)
+        elif choice.lower() == "m":
+            cat_id = typer.prompt("Category ID", type=int)
+            return cat_id
+        elif choice.isdigit():
+            idx = int(choice) - 1
+            if 0 <= idx < len(cat_list):
+                return cat_list[idx][0]
+            console.print("[red]Invalid selection[/red]")
+        else:
+            console.print("[red]Invalid input[/red]")
 
 
 @app.command()
@@ -77,6 +134,16 @@ def add(
         filters["inseam"] = parse_multi_value(inseam)
     if size_type:
         filters["size_type"] = parse_multi_value(size_type)
+
+    # Check if aspect filters are used without a category - prompt wizard
+    aspect_filters_used = any(filters.get(f) for f in ["color", "size", "inseam", "size_type"])
+    if aspect_filters_used and not category:
+        prefs = get_user_prefs()
+        if not prefs.gender_preference:
+            prefs.gender_preference = prompt_gender_preference()
+
+        selected_category = prompt_category_selection(prefs.gender_preference)
+        filters["category"] = selected_category
 
     search = Search(
         id=None,
@@ -198,6 +265,16 @@ def edit(
     if size_type is not None:
         new_filters["size_type"] = parse_multi_value(size_type)
 
+    # Check if aspect filters are used without a category - prompt wizard
+    aspect_filters_used = any(new_filters.get(f) for f in ["color", "size", "inseam", "size_type"])
+    if aspect_filters_used and not new_filters.get("category"):
+        prefs = get_user_prefs()
+        if not prefs.gender_preference:
+            prefs.gender_preference = prompt_gender_preference()
+
+        selected_category = prompt_category_selection(prefs.gender_preference)
+        new_filters["category"] = selected_category
+
     # Check if anything changed
     filters_changed = new_filters != (search.filters or {})
     query_changed = query is not None and query != search.query
@@ -258,17 +335,10 @@ def status():
 @app.command()
 def fetch(
     name: Optional[str] = typer.Argument(None, help="Name of search to fetch (all if not specified)"),
-    pages: int = typer.Option(1, "--pages", "-p", help="Number of pages to fetch (max 240 items each)"),
 ):
     """Fetch new listings from eBay."""
     config = get_config()
     db = get_db()
-
-    # Warn and require confirmation for >10 pages
-    if pages > 10:
-        console.print(f"[yellow]Warning: Fetching {pages} pages will make many requests.[/yellow]")
-        if not typer.confirm("Continue?"):
-            raise typer.Exit(0)
 
     if name:
         search = db.get_search_by_name(name)
@@ -295,31 +365,13 @@ def fetch(
     for search in searches:
         console.print(f"[cyan]Fetching:[/cyan] {search.name}")
 
-        all_listings = []
         try:
-            for page_num in range(1, pages + 1):
-                if pages > 1:
-                    console.print(f"  Page {page_num}/{pages}...", end=" ")
-
-                url = build_search_url(search.query, search.filters, page=page_num)
-                html = fetch_page(url, config.proxy_url)
-                page_listings = parse_listings(html, search.id)
-
-                if pages > 1:
-                    console.print(f"{len(page_listings)} listings")
-
-                all_listings.extend(page_listings)
-
-                # Stop early if page returned no results (no more pages)
-                if len(page_listings) == 0:
-                    break
-
-                # Rate limit between pages
-                if page_num < pages:
-                    rate_limit_delay()
+            url = build_search_url(search.query, search.filters)
+            html = fetch_page(url, config.proxy_url)
+            listings = parse_listings(html, search.id)
 
             new_count = 0
-            for listing in all_listings:
+            for listing in listings:
                 if db.add_listing(listing):
                     new_count += 1
 
@@ -328,11 +380,11 @@ def fetch(
                 id=None,
                 search_id=search.id,
                 fetched_at=None,
-                listings_found=len(all_listings),
+                listings_found=len(listings),
                 status="success",
             ))
 
-            console.print(f"  Found {len(all_listings)} listings, {new_count} new")
+            console.print(f"  Found {len(listings)} listings, {new_count} new")
             total_new += new_count
 
         except Exception as e:
