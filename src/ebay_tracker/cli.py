@@ -310,8 +310,8 @@ def fetch(
 
                 all_listings.extend(page_listings)
 
-                # Stop early if page returned few results (no more pages)
-                if len(page_listings) < 200:
+                # Stop early if page returned no results (no more pages)
+                if len(page_listings) == 0:
                     break
 
                 # Rate limit between pages
@@ -451,18 +451,19 @@ def history(
     table.add_column("Price", justify="right", style="green")
     table.add_column("Ship", justify="right", style="dim")
     table.add_column("Condition", style="dim")
+    table.add_column("URL", style="dim")
 
     for listing in listings[:limit]:
         date_str = listing.sold_date.strftime("%Y-%m-%d") if listing.sold_date else "-"
-        title = listing.title[:50] + "..." if len(listing.title) > 50 else listing.title
         shipping = f"${listing.shipping:.2f}" if listing.shipping else "Free"
 
         table.add_row(
             date_str,
-            title,
+            listing.title,
             f"${listing.price:.2f}",
             shipping,
             listing.condition or "-",
+            listing.url or "-",
         )
 
     console.print(table)
