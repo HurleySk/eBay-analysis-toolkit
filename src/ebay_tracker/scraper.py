@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 import httpx
 from bs4 import BeautifulSoup
 
-from ebay_tracker.models import Listing
+from ebay_tracker.models import Listing, ActiveListing, SuggestedQuery
 
 
 USER_AGENTS = [
@@ -276,3 +276,120 @@ def parse_sold_date(text: str) -> date | None:
 def rate_limit_delay() -> None:
     """Random delay between requests to avoid detection."""
     time.sleep(random.uniform(2.0, 5.0))
+
+
+def normalize_item_url(url_or_item_id: str) -> tuple[str, str]:
+    url_or_item_id = url_or_item_id.strip()
+    match = re.search(r"/itm/(\d+)", url_or_item_id)
+    if match:
+        item_id = match.group(1)
+        return f"https://www.ebay.com/itm/{item_id}", item_id
+    if url_or_item_id.isdigit():
+        return f"https://www.ebay.com/itm/{url_or_item_id}", url_or_item_id
+    raise ValueError(f"Could not extract item ID from: {url_or_item_id}")
+
+
+def fetch_active_listing(url_or_item_id: str, proxy_url: str | None = None) -> ActiveListing:
+    url, item_id = normalize_item_url(url_or_item_id)
+    html = fetch_page(url, proxy_url)
+    return parse_active_listing(html, item_id)
+
+
+def parse_active_listing(html: str, item_id: str) -> ActiveListing:
+    soup = BeautifulSoup(html, "lxml")
+
+    title_elem = soup.select_one("h1.x-item-title__mainTitle span, h1.x-item-title__mainTitle")
+    title = title_elem.get_text(strip=True) if title_elem else "Unknown"
+
+    price_elem = soup.select_one(".x-price-primary span.ux-textspans")
+    price = parse_price(price_elem.get_text(strip=True)) if price_elem else 0.0
+
+    condition_elem = soup.select_one(".x-item-condition span.ux-textspans, .x-item-condition .ux-icon-text__text")
+    condition = condition_elem.get_text(strip=True) if condition_elem else None
+
+    shipping = None
+    shipping_section = soup.select_one(".ux-labels-values--shipping .ux-labels-values__values-content")
+    if shipping_section:
+        shipping_text = shipping_section.get_text(strip=True)
+        if "free" in shipping_text.lower():
+            shipping = 0.0
+        else:
+            shipping = parse_price(shipping_text)
+
+    seller = None
+    seller_elem = soup.select_one(".x-sellercard-atf__info__about-seller span.ux-textspans--BOLD")
+    if seller_elem:
+        seller = seller_elem.get_text(strip=True)
+
+    category_id = None
+    breadcrumb_link = soup.select_one("nav.breadcrumbs a[href*='/b/']")
+    if breadcrumb_link:
+        href = breadcrumb_link.get("href", "")
+        cat_match = re.search(r"/(\d+)/", href)
+        if cat_match:
+            category_id = int(cat_match.group(1))
+
+    item_specifics = {}
+    for dl in soup.select(".x-about-this-item dl.ux-labels-values"):
+        label_elem = dl.select_one(".ux-labels-values__labels-content span")
+        value_elem = dl.select_one(".ux-labels-values__values-content span")
+        if label_elem and value_elem:
+            label = label_elem.get_text(strip=True)
+            value = value_elem.get_text(strip=True)
+            if label and value:
+                item_specifics[label] = value
+
+    return ActiveListing(
+        item_id=item_id,
+        title=title,
+        price=price,
+        shipping=shipping,
+        condition=condition,
+        category_id=category_id,
+        item_specifics=item_specifics,
+        url=f"https://www.ebay.com/itm/{item_id}",
+        seller=seller,
+    )
+
+
+def extract_search_query(listing: ActiveListing) -> SuggestedQuery:
+    specs = listing.item_specifics
+    query_parts = []
+
+    brand = specs.get("Brand")
+    if brand:
+        query_parts.append(brand)
+
+    style = specs.get("Style") or specs.get("Model")
+    if style:
+        query_parts.append(style)
+
+    title_lower = listing.title.lower()
+    clothing_keywords = ["jeans", "pants", "shirt", "jacket", "shorts", "sweater", "coat", "shoes", "boots"]
+    for kw in clothing_keywords:
+        if kw in title_lower and kw not in " ".join(query_parts).lower():
+            query_parts.append(kw)
+            break
+
+    waist = specs.get("Waist Size")
+    inseam = specs.get("Inseam")
+    size = specs.get("Size")
+    if waist and inseam:
+        query_parts.append(f"{waist}x{inseam}")
+    elif size:
+        query_parts.append(size)
+
+    if not query_parts:
+        query_parts = listing.title.split()[:6]
+
+    filters = {}
+    if listing.condition:
+        filters["condition"] = listing.condition
+    if listing.category_id:
+        filters["category"] = listing.category_id
+
+    return SuggestedQuery(
+        query=" ".join(query_parts),
+        filters=filters,
+        raw_attributes=dict(specs),
+    )
