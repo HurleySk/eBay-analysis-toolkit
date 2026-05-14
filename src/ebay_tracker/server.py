@@ -1,18 +1,12 @@
+import asyncio
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 from mcp.server.fastmcp import FastMCP
 
-from ebay_tracker.config import (
-    FeeConfig, ThresholdConfig,
-    get_config, get_user_prefs, save_user_prefs,
-)
-from ebay_tracker.evaluator import run_profit_analysis as _run_analysis
-from ebay_tracker.models import ActiveListing
-from ebay_tracker.scraper import (
-    build_search_url, extract_search_query,
-    fetch_active_listing, fetch_page, parse_listings,
-    _get_browser_fetcher,
-)
+# Single-threaded executor: Playwright's sync API binds its event loop to the
+# creating thread, so all browser operations must run on the same thread.
+_playwright_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="playwright")
 
 mcp = FastMCP(
     "ebay-resale",
@@ -24,7 +18,26 @@ mcp = FastMCP(
 )
 
 
-def _listing_to_dict(listing: ActiveListing) -> dict:
+def _filter_comps_by_brand(comps: list, brand: str) -> list:
+    if not brand:
+        return comps
+    brand_lower = brand.lower()
+    return [c for c in comps if brand_lower in c.title.lower()]
+
+
+def _remove_price_outliers(comps: list) -> list:
+    if len(comps) < 8:
+        return comps
+    prices = sorted(c.price for c in comps)
+    q1 = prices[len(prices) // 4]
+    q3 = prices[3 * len(prices) // 4]
+    iqr = q3 - q1
+    lower = q1 - 1.5 * iqr
+    upper = q3 + 1.5 * iqr
+    return [c for c in comps if lower <= c.price <= upper]
+
+
+def _listing_to_dict(listing) -> dict:
     return {
         "item_id": listing.item_id,
         "title": listing.title,
@@ -39,6 +52,9 @@ def _listing_to_dict(listing: ActiveListing) -> dict:
 
 
 def _do_evaluate_listing(url_or_item_id: str) -> dict:
+    from ebay_tracker.config import get_config
+    from ebay_tracker.scraper import extract_search_query, fetch_active_listing
+
     config = get_config()
     listing = fetch_active_listing(url_or_item_id, config.proxy_url)
     suggested = extract_search_query(listing)
@@ -58,7 +74,13 @@ def _do_run_profit_analysis(
     comp_filters: dict | None = None,
     fee_overrides: dict | None = None,
     threshold_overrides: dict | None = None,
+    filter_brand: str = "",
 ) -> dict:
+    from ebay_tracker.config import FeeConfig, ThresholdConfig, get_config, get_user_prefs
+    from ebay_tracker.evaluator import run_profit_analysis as _run_analysis
+    from ebay_tracker.models import ActiveListing
+    from ebay_tracker.scraper import build_search_url, fetch_page, parse_listings
+
     config = get_config()
     prefs = get_user_prefs()
 
@@ -89,7 +111,33 @@ def _do_run_profit_analysis(
 
     url = build_search_url(comp_query, comp_filters)
     html = fetch_page(url, config.proxy_url, use_browser=True)
-    comps = parse_listings(html, search_id=0)
+    all_comps = parse_listings(html, search_id=0)
+    comps_before_filter = len(all_comps)
+
+    comps = list(all_comps)
+    if filter_brand:
+        comps = _filter_comps_by_brand(comps, filter_brand)
+    n_before_iqr = len(comps)
+    comps = _remove_price_outliers(comps)
+    comps_after_filter = len(comps)
+    outliers_removed = n_before_iqr - comps_after_filter
+
+    quality_warning = None
+    if not comps and comps_before_filter > 0:
+        comps = all_comps
+        comps_after_filter = len(comps)
+        quality_warning = "All comps removed by filters, showing unfiltered results"
+    elif outliers_removed > 0:
+        quality_warning = f"Removed {outliers_removed} price outliers (IQR filter)"
+
+    brand_from_listing = listing_data.get("item_specifics", {}).get("Brand", "")
+    brand_match_rate = None
+    if brand_from_listing and all_comps:
+        brand_matches = sum(1 for c in all_comps if brand_from_listing.lower() in c.title.lower())
+        brand_match_rate = round(brand_matches / len(all_comps) * 100, 1)
+
+    if brand_match_rate is not None and brand_match_rate < 50 and not filter_brand and quality_warning is None:
+        quality_warning = f"Only {brand_match_rate}% of comps match brand '{brand_from_listing}'"
 
     result = _run_analysis(listing, comps, fee_cfg, threshold_cfg)
 
@@ -112,7 +160,18 @@ def _do_run_profit_analysis(
         "verdict": "BUY" if result.meets_threshold else "PASS",
         "confidence": result.confidence,
         "comp_count": result.comp_count,
+        "comp_sample": [
+            {"title": c.title, "price": c.price}
+            for c in comps[:10]
+        ],
+        "comps_before_filter": comps_before_filter,
+        "comps_after_filter": comps_after_filter,
     }
+
+    if brand_match_rate is not None:
+        output["brand_match_rate"] = brand_match_rate
+    if quality_warning:
+        output["comp_quality_warning"] = quality_warning
 
     if result.time_to_sell:
         output["time_to_sell"] = {
@@ -128,6 +187,8 @@ def _do_run_profit_analysis(
 
 
 def _do_configure_fees(**kwargs) -> dict:
+    from ebay_tracker.config import get_user_prefs, save_user_prefs
+
     prefs = get_user_prefs()
     for key, value in kwargs.items():
         if value is not None and hasattr(prefs.fees, key):
@@ -146,6 +207,8 @@ def _do_configure_fees(**kwargs) -> dict:
 
 
 def _do_configure_thresholds(**kwargs) -> dict:
+    from ebay_tracker.config import get_user_prefs, save_user_prefs
+
     prefs = get_user_prefs()
     for key, value in kwargs.items():
         if value is not None and hasattr(prefs.thresholds, key):
@@ -162,6 +225,7 @@ def _do_configure_thresholds(**kwargs) -> dict:
 
 def _do_get_historical_stats(search_name: str) -> dict:
     from ebay_tracker.analyzer import analyze_listings
+    from ebay_tracker.config import get_config
     from ebay_tracker.db import Database
 
     config = get_config()
@@ -184,21 +248,23 @@ def _do_get_historical_stats(search_name: str) -> dict:
 
 
 @mcp.tool()
-def evaluate_listing(url_or_item_id: str) -> str:
+async def evaluate_listing(url_or_item_id: str) -> str:
     """Fetch an active eBay listing and generate a suggested comp search query.
     Returns listing details and suggested query for review before running full analysis.
     Input: eBay listing URL (e.g. https://www.ebay.com/itm/123456) or item number."""
-    result = _do_evaluate_listing(url_or_item_id)
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(_playwright_executor, _do_evaluate_listing, url_or_item_id)
     return json.dumps(result, indent=2)
 
 
 @mcp.tool()
-def run_profit_analysis(
+async def run_profit_analysis(
     listing_data: str,
     comp_query: str,
     comp_filters: str = "{}",
     fee_overrides: str = "{}",
     threshold_overrides: str = "{}",
+    filter_brand: str = "",
 ) -> str:
     """Run full resale profit analysis. Call evaluate_listing first, then pass listing_data
     from its response with a confirmed comp_query.
@@ -206,19 +272,29 @@ def run_profit_analysis(
     comp_query: Search query for comparable sold items.
     comp_filters: JSON string of optional filters (condition, category, etc.).
     fee_overrides: JSON string to override fee settings for this analysis.
-    threshold_overrides: JSON string to override threshold settings for this analysis."""
-    result = _do_run_profit_analysis(
-        listing_data=json.loads(listing_data),
-        comp_query=comp_query,
-        comp_filters=json.loads(comp_filters) if comp_filters else None,
-        fee_overrides=json.loads(fee_overrides) if fee_overrides else None,
-        threshold_overrides=json.loads(threshold_overrides) if threshold_overrides else None,
+    threshold_overrides: JSON string to override threshold settings for this analysis.
+    filter_brand: Brand name to filter comps by (case-insensitive title match)."""
+    parsed_listing = json.loads(listing_data)
+    parsed_filters = json.loads(comp_filters) if comp_filters else None
+    parsed_fees = json.loads(fee_overrides) if fee_overrides else None
+    parsed_thresholds = json.loads(threshold_overrides) if threshold_overrides else None
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        _playwright_executor,
+        lambda: _do_run_profit_analysis(
+            listing_data=parsed_listing,
+            comp_query=comp_query,
+            comp_filters=parsed_filters,
+            fee_overrides=parsed_fees,
+            threshold_overrides=parsed_thresholds,
+            filter_brand=filter_brand,
+        ),
     )
     return json.dumps(result, indent=2)
 
 
 @mcp.tool()
-def configure_fees(
+async def configure_fees(
     final_value_pct: float | None = None,
     payment_processing_pct: float | None = None,
     payment_processing_flat: float | None = None,
@@ -228,36 +304,39 @@ def configure_fees(
 ) -> str:
     """Get or set fee configuration. Pass parameters to update, or call with no args to read current config.
     Persists to ~/.config/ebay-tracker/config.json."""
-    kwargs = {
+    kwargs = {k: v for k, v in {
         "final_value_pct": final_value_pct,
         "payment_processing_pct": payment_processing_pct,
         "payment_processing_flat": payment_processing_flat,
         "shipping_cost": shipping_cost,
         "sales_tax_rate": sales_tax_rate,
         "state": state,
-    }
-    result = _do_configure_fees(**{k: v for k, v in kwargs.items() if v is not None})
+    }.items() if v is not None}
+    result = await asyncio.to_thread(_do_configure_fees, **kwargs)
     return json.dumps(result, indent=2)
 
 
 @mcp.tool()
-def configure_thresholds(
+async def configure_thresholds(
     min_profit_pct: float | None = None,
     min_profit_dollar: float | None = None,
     mode: str | None = None,
 ) -> str:
     """Get or set profit threshold configuration. Mode is 'and' (both must pass) or 'or' (either passes).
     Persists to ~/.config/ebay-tracker/config.json."""
-    kwargs = {
+    kwargs = {k: v for k, v in {
         "min_profit_pct": min_profit_pct,
         "min_profit_dollar": min_profit_dollar,
         "mode": mode,
-    }
-    result = _do_configure_thresholds(**{k: v for k, v in kwargs.items() if v is not None})
+    }.items() if v is not None}
+    result = await asyncio.to_thread(_do_configure_thresholds, **kwargs)
     return json.dumps(result, indent=2)
 
 
 def _do_test_connection() -> dict:
+    from ebay_tracker.config import get_config
+    from ebay_tracker.scraper import _get_browser_fetcher
+
     config = get_config()
     result = {
         "proxy_configured": config.proxy_url is not None,
@@ -296,17 +375,18 @@ def _do_test_connection() -> dict:
 
 
 @mcp.tool()
-def test_connection() -> str:
+async def test_connection() -> str:
     """Test proxy connectivity and browser health. Call this first if scraping fails.
     Returns proxy IP, browser status, and eBay reachability."""
-    result = _do_test_connection()
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(_playwright_executor, _do_test_connection)
     return json.dumps(result, indent=2)
 
 
 @mcp.tool()
-def get_historical_stats(search_name: str) -> str:
+async def get_historical_stats(search_name: str) -> str:
     """Get price statistics and trends for an existing saved search.
     Queries the local database without making new eBay requests.
     search_name: Name of a search previously added via 'ebay-tracker add'."""
-    result = _do_get_historical_stats(search_name)
+    result = await asyncio.to_thread(_do_get_historical_stats, search_name)
     return json.dumps(result, indent=2)

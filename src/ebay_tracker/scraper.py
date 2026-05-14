@@ -76,6 +76,9 @@ def build_search_url(query: str, filters: dict | None = None) -> str:
             size_type_val = filters["size_type"]
             params["Size Type"] = "|".join(size_type_val) if isinstance(size_type_val, list) else size_type_val
             aspect_filters.append(True)
+        if "shoe_size" in filters:
+            params["US Shoe Size"] = filters["shoe_size"]
+            aspect_filters.append(True)
 
         # rt=nc and LH_SpecificOnly are required for aspect filters to be enforced
         if aspect_filters:
@@ -393,26 +396,38 @@ def extract_search_query(listing: ActiveListing) -> SuggestedQuery:
     query_parts = []
 
     brand = specs.get("Brand")
-    if brand:
-        query_parts.append(brand)
+    model = specs.get("Model")
+    style = specs.get("Style")
 
-    style = specs.get("Style") or specs.get("Model")
-    if style:
-        query_parts.append(style)
+    model_is_useful = model and model.strip().lower() != (brand or "").strip().lower()
 
-    title_lower = listing.title.lower()
-    clothing_keywords = ["jeans", "pants", "shirt", "jacket", "shorts", "sweater", "coat", "shoes", "boots"]
-    for kw in clothing_keywords:
-        if kw in title_lower and kw not in " ".join(query_parts).lower():
-            query_parts.append(kw)
-            break
+    if model_is_useful:
+        if brand and brand.lower() in model.lower():
+            query_parts.append(model)
+        elif brand:
+            query_parts.append(brand)
+            query_parts.append(model)
+        else:
+            query_parts.append(model)
+    else:
+        if brand:
+            query_parts.append(brand)
+        if style:
+            query_parts.append(style)
+
+        title_lower = listing.title.lower()
+        clothing_keywords = ["jeans", "pants", "shirt", "jacket", "shorts", "sweater", "coat", "shoes", "boots"]
+        for kw in clothing_keywords:
+            if kw in title_lower and kw not in " ".join(query_parts).lower():
+                query_parts.append(kw)
+                break
 
     waist = specs.get("Waist Size")
     inseam = specs.get("Inseam")
     size = specs.get("Size")
     if waist and inseam:
         query_parts.append(f"{waist}x{inseam}")
-    elif size:
+    elif size and not specs.get("US Shoe Size"):
         query_parts.append(size)
 
     if not query_parts:
@@ -423,6 +438,10 @@ def extract_search_query(listing: ActiveListing) -> SuggestedQuery:
         filters["condition"] = listing.condition
     if listing.category_id:
         filters["category"] = listing.category_id
+
+    shoe_size = specs.get("US Shoe Size")
+    if shoe_size:
+        filters["shoe_size"] = shoe_size
 
     return SuggestedQuery(
         query=" ".join(query_parts),
