@@ -45,3 +45,11 @@ Before first use, help the user configure their fee settings:
 | `configure_fees` | Set/get fee parameters |
 | `configure_thresholds` | Set/get profit thresholds |
 | `get_historical_stats` | Query existing saved search data |
+| `test_connection` | Test proxy and browser health |
+
+## Troubleshooting
+
+If `evaluate_listing` or `run_profit_analysis` fails, call `test_connection` first to check:
+- Whether the Decodo proxy is configured and reachable
+- Whether the Playwright browser is healthy
+- Whether eBay is accessible through the proxy
