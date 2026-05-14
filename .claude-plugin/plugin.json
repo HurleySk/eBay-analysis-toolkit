@@ -1,6 +1,6 @@
 {
   "name": "ebay-resale",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "eBay resale profit analysis - evaluate listings for buy/resell profitability",
   "author": {
     "name": "HurleySk"
@@ -8,5 +8,6 @@
   "license": "MIT",
   "homepage": "https://github.com/HurleySk/eBay-analysis-toolkit",
   "repository": "https://github.com/HurleySk/eBay-analysis-toolkit",
-  "keywords": ["ebay", "resale", "profit", "analysis", "mcp"]
+  "keywords": ["ebay", "resale", "profit", "analysis", "mcp"],
+  "mcpServers": "./.mcp.json"
 }

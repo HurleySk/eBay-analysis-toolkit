@@ -3,7 +3,7 @@
     "ebay-resale": {
       "type": "stdio",
       "command": "uv",
-      "args": ["run", "--directory", "{PLUGIN_DIR}", "python", "-m", "ebay_tracker"]
+      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "python", "-m", "ebay_tracker"]
     }
   }
 }
