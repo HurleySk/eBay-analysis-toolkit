@@ -371,7 +371,7 @@ def fetch(
 
         try:
             url = build_search_url(search.query, search.filters)
-            html = fetch_page(url, config.proxy_url)
+            html = fetch_page(url, config.proxy_url, use_browser=True)
             listings = parse_listings(html, search.id)
 
             new_count = 0
@@ -655,7 +655,7 @@ def evaluate(
     console.print("[cyan]Fetching comparable sold listings...[/cyan]")
     try:
         url = build_search_url(comp_query, comp_filters)
-        html = fetch_page(url, config.proxy_url)
+        html = fetch_page(url, config.proxy_url, use_browser=True)
         comps = parse_listings(html, search_id=0)
     except Exception as e:
         console.print(f"[red]Failed to fetch comps: {e}[/red]")
