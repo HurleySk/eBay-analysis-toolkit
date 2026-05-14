@@ -9,10 +9,14 @@ from rich.table import Table
 
 from ebay_tracker.analyzer import analyze_listings, get_recommendation
 from ebay_tracker.categories import get_categories_for_preference, search_categories
-from ebay_tracker.config import get_config, get_user_prefs, save_user_prefs
+from ebay_tracker.config import get_config, get_user_prefs, save_user_prefs, FeeConfig, ThresholdConfig
 from ebay_tracker.db import Database
+from ebay_tracker.evaluator import run_profit_analysis
 from ebay_tracker.models import Search, FetchLog
-from ebay_tracker.scraper import build_search_url, fetch_page, parse_listings
+from ebay_tracker.scraper import (
+    build_search_url, fetch_page, parse_listings,
+    fetch_active_listing, extract_search_query, rate_limit_delay,
+)
 
 app = typer.Typer(
     name="ebay-tracker",
@@ -573,6 +577,167 @@ def export(
         print(csv_content)
 
     db.close()
+
+
+@app.command()
+def evaluate(
+    url_or_item_id: str = typer.Argument(..., help="eBay listing URL or item number"),
+    query: Optional[str] = typer.Option(None, "--query", "-q", help="Override comp search query"),
+    min_profit_pct: Optional[float] = typer.Option(None, "--min-profit-pct", help="Min profit percentage threshold"),
+    min_profit_dollar: Optional[float] = typer.Option(None, "--min-profit-dollar", help="Min profit dollar threshold"),
+    threshold_mode: Optional[str] = typer.Option(None, "--threshold-mode", help="Threshold mode: 'and' or 'or'"),
+    shipping_cost: Optional[float] = typer.Option(None, "--shipping-cost", help="Seller-paid shipping cost"),
+    tax_rate: Optional[float] = typer.Option(None, "--tax-rate", help="Sales tax rate override (percentage)"),
+    max_comps: int = typer.Option(240, "--max-comps", help="Max number of comps to fetch"),
+    export_path: Optional[Path] = typer.Option(None, "--export", help="Export analysis to JSON file"),
+):
+    """Evaluate an eBay listing for resale profitability."""
+    import json as json_mod
+    config = get_config()
+    prefs = get_user_prefs()
+
+    fee_cfg = FeeConfig(
+        final_value_pct=prefs.fees.final_value_pct,
+        payment_processing_pct=prefs.fees.payment_processing_pct,
+        payment_processing_flat=prefs.fees.payment_processing_flat,
+        shipping_cost=shipping_cost if shipping_cost is not None else prefs.fees.shipping_cost,
+        sales_tax_rate=tax_rate if tax_rate is not None else prefs.fees.sales_tax_rate,
+        state=prefs.fees.state,
+    )
+    threshold_cfg = ThresholdConfig(
+        min_profit_pct=min_profit_pct if min_profit_pct is not None else prefs.thresholds.min_profit_pct,
+        min_profit_dollar=min_profit_dollar if min_profit_dollar is not None else prefs.thresholds.min_profit_dollar,
+        mode=threshold_mode if threshold_mode is not None else prefs.thresholds.mode,
+    )
+
+    console.print("[cyan]Fetching listing...[/cyan]")
+    try:
+        active = fetch_active_listing(url_or_item_id, config.proxy_url)
+    except Exception as e:
+        console.print(f"[red]Failed to fetch listing: {e}[/red]")
+        raise typer.Exit(1)
+
+    table = Table(title="Active Listing", show_header=False)
+    table.add_column("Field", style="bold")
+    table.add_column("Value")
+    table.add_row("Title", active.title)
+    table.add_row("Price", f"${active.price:.2f}")
+    table.add_row("Shipping", f"${active.shipping:.2f}" if active.shipping else "N/A")
+    table.add_row("Condition", active.condition or "N/A")
+    table.add_row("Seller", active.seller or "N/A")
+    if active.item_specifics:
+        specs_str = ", ".join(f"{k}: {v}" for k, v in active.item_specifics.items())
+        table.add_row("Specifics", specs_str)
+    console.print(table)
+    console.print()
+
+    if query:
+        comp_query = query
+        comp_filters = {}
+    else:
+        suggested = extract_search_query(active)
+        console.print(f"[cyan]Suggested search:[/cyan] {suggested.query}")
+        if suggested.filters:
+            console.print(f"[dim]Filters: {suggested.filters}[/dim]")
+        console.print()
+
+        choice = typer.prompt("Use this search? [Y/edit/abort]", default="Y")
+        if choice.lower() == "abort":
+            console.print("[yellow]Aborted.[/yellow]")
+            raise typer.Exit(0)
+        elif choice.lower() in ("e", "edit"):
+            comp_query = typer.prompt("Search query", default=suggested.query)
+            comp_filters = suggested.filters
+        else:
+            comp_query = suggested.query
+            comp_filters = suggested.filters
+
+    console.print("[cyan]Fetching comparable sold listings...[/cyan]")
+    try:
+        url = build_search_url(comp_query, comp_filters)
+        html = fetch_page(url, config.proxy_url)
+        comps = parse_listings(html, search_id=0)
+    except Exception as e:
+        console.print(f"[red]Failed to fetch comps: {e}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[dim]Found {len(comps)} comparable sales[/dim]")
+    console.print()
+
+    result = run_profit_analysis(active, comps, fee_cfg, threshold_cfg)
+
+    result_table = Table(title="Profit Analysis")
+    result_table.add_column("Metric", style="bold")
+    result_table.add_column("Value", justify="right")
+
+    result_table.add_row("Purchase Price", f"${result.purchase_price:.2f}")
+    result_table.add_row("+ Shipping", f"${result.purchase_shipping:.2f}")
+    if result.purchase_tax > 0:
+        result_table.add_row("+ Sales Tax", f"${result.purchase_tax:.2f}")
+    result_table.add_row("[bold]Total Cost[/bold]", f"[bold]${result.total_purchase_cost:.2f}[/bold]")
+    result_table.add_row("", "")
+    result_table.add_row("Expected Sale (median)", f"${result.expected_sale_price:.2f}")
+    result_table.add_row("Sale Range (25th-75th)", f"${result.sale_price_25th:.2f} - ${result.sale_price_75th:.2f}")
+    result_table.add_row("eBay Final Value Fee", f"-${result.net_proceeds.final_value_fee:.2f}")
+    result_table.add_row("Payment Processing", f"-${result.net_proceeds.payment_processing_fee:.2f}")
+    if result.net_proceeds.shipping_cost > 0:
+        result_table.add_row("Seller Shipping", f"-${result.net_proceeds.shipping_cost:.2f}")
+    result_table.add_row("[bold]Net Proceeds[/bold]", f"[bold]${result.net_proceeds.net:.2f}[/bold]")
+    result_table.add_row("", "")
+
+    profit_style = "green" if result.projected_profit > 0 else "red"
+    result_table.add_row(
+        f"[{profit_style}]Projected Profit[/{profit_style}]",
+        f"[{profit_style}]${result.projected_profit:.2f} ({result.projected_profit_pct:.1f}%)[/{profit_style}]",
+    )
+
+    if result.time_to_sell:
+        tts = result.time_to_sell
+        result_table.add_row("", "")
+        result_table.add_row("Time to Sell (median)", f"~{tts.median_days:.0f} days")
+        result_table.add_row("  Quick / Slow / Max", f"{tts.fast_days:.0f}d / {tts.slow_days:.0f}d / {tts.ninety_pct_days:.0f}d")
+
+    result_table.add_row("", "")
+    result_table.add_row("Confidence", f"{result.confidence} ({result.comp_count} comps)")
+    result_table.add_row("Threshold", result.threshold_detail)
+
+    verdict_style = "bold green" if result.meets_threshold else "bold red"
+    verdict_text = "BUY" if result.meets_threshold else "PASS"
+    result_table.add_row(
+        f"[{verdict_style}]Verdict[/{verdict_style}]",
+        f"[{verdict_style}]{verdict_text}[/{verdict_style}]",
+    )
+
+    console.print(result_table)
+
+    if export_path:
+        export_data = {
+            "listing": {
+                "item_id": active.item_id, "title": active.title,
+                "price": active.price, "shipping": active.shipping,
+                "condition": active.condition, "url": active.url,
+            },
+            "analysis": {
+                "purchase_cost": result.total_purchase_cost,
+                "expected_sale_price": result.expected_sale_price,
+                "sale_range": [result.sale_price_25th, result.sale_price_75th],
+                "net_proceeds": result.net_proceeds.net,
+                "projected_profit": result.projected_profit,
+                "projected_profit_pct": result.projected_profit_pct,
+                "meets_threshold": result.meets_threshold,
+                "threshold_detail": result.threshold_detail,
+                "confidence": result.confidence, "comp_count": result.comp_count,
+            },
+        }
+        if result.time_to_sell:
+            export_data["analysis"]["time_to_sell"] = {
+                "median_days": result.time_to_sell.median_days,
+                "fast_days": result.time_to_sell.fast_days,
+                "slow_days": result.time_to_sell.slow_days,
+                "ninety_pct_days": result.time_to_sell.ninety_pct_days,
+            }
+        export_path.write_text(json_mod.dumps(export_data, indent=2))
+        console.print(f"\n[green]Analysis exported to {export_path}[/green]")
 
 
 if __name__ == "__main__":
