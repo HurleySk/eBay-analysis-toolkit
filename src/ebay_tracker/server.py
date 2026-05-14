@@ -1,14 +1,13 @@
 import json
-from datetime import date
 
 from mcp.server.fastmcp import FastMCP
 
 from ebay_tracker.config import (
     FeeConfig, ThresholdConfig,
-    get_config, get_prefs_path, get_user_prefs, save_user_prefs,
+    get_config, get_user_prefs, save_user_prefs,
 )
 from ebay_tracker.evaluator import run_profit_analysis as _run_analysis
-from ebay_tracker.models import ActiveListing, Listing
+from ebay_tracker.models import ActiveListing
 from ebay_tracker.scraper import (
     build_search_url, extract_search_query,
     fetch_active_listing, fetch_page, parse_listings,

@@ -1,5 +1,4 @@
 import json
-import pytest
 from ebay_tracker.config import (
     FeeConfig, ThresholdConfig, UserPreferences,
     get_user_prefs, save_user_prefs,

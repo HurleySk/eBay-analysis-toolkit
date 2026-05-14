@@ -79,7 +79,7 @@ def test_do_run_profit_analysis():
 def test_do_configure_fees(tmp_path, monkeypatch):
     config_path = tmp_path / "config.json"
     monkeypatch.setattr("ebay_tracker.config.get_prefs_path", lambda: config_path)
-    monkeypatch.setattr("ebay_tracker.server.get_prefs_path", lambda: config_path)
+    monkeypatch.setattr("ebay_tracker.config.get_prefs_path", lambda: config_path)
 
     result = _do_configure_fees(shipping_cost=8.50, sales_tax_rate=7.0, state="TX")
     assert result["fees"]["shipping_cost"] == 8.50
@@ -90,7 +90,7 @@ def test_do_configure_fees(tmp_path, monkeypatch):
 def test_do_configure_thresholds(tmp_path, monkeypatch):
     config_path = tmp_path / "config.json"
     monkeypatch.setattr("ebay_tracker.config.get_prefs_path", lambda: config_path)
-    monkeypatch.setattr("ebay_tracker.server.get_prefs_path", lambda: config_path)
+    monkeypatch.setattr("ebay_tracker.config.get_prefs_path", lambda: config_path)
 
     result = _do_configure_thresholds(min_profit_pct=25.0, mode="or")
     assert result["thresholds"]["min_profit_pct"] == 25.0
