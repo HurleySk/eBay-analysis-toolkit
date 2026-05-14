@@ -244,9 +244,11 @@ def extract_item_id(url: str) -> str | None:
 
 
 def parse_price(text: str) -> float:
-    """Parse price string to float."""
-    # Remove currency symbol and commas
-    cleaned = re.sub(r"[^\d.]", "", text)
+    """Parse price string to float. For price ranges, takes the lower bound."""
+    prices = re.findall(r"\d[\d,]*\.?\d*", text)
+    if not prices:
+        return 0.0
+    cleaned = prices[0].replace(",", "")
     try:
         return float(cleaned)
     except ValueError:

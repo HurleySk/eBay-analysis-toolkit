@@ -16,8 +16,8 @@ class eBayFeeCalculator:
         self.shipping_cost = shipping_cost
         self.sales_tax_rate = sales_tax_rate
 
-    def calculate_net_proceeds(self, sale_price: float) -> NetProceeds:
-        gross = sale_price
+    def calculate_net_proceeds(self, sale_price: float, shipping_to_buyer: float = 0.0) -> NetProceeds:
+        gross = sale_price + shipping_to_buyer
         final_value_fee = gross * self.final_value_pct / 100
         payment_processing_fee = gross * self.payment_processing_pct / 100 + self.payment_processing_flat
         total_fees = final_value_fee + payment_processing_fee + self.shipping_cost

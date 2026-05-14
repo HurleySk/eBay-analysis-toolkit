@@ -49,7 +49,10 @@ def run_profit_analysis(
     sale_price_25th = float(prices.quantile(0.25))
     sale_price_75th = float(prices.quantile(0.75))
 
-    net_proceeds = calculator.calculate_net_proceeds(expected_sale_price)
+    comp_shipping = [c.shipping for c in comps if c.shipping is not None]
+    median_buyer_shipping = float(pd.Series(comp_shipping).median()) if comp_shipping else 0.0
+
+    net_proceeds = calculator.calculate_net_proceeds(expected_sale_price, median_buyer_shipping)
     projected_profit = net_proceeds.net - total_purchase_cost
     projected_profit_pct = (projected_profit / total_purchase_cost * 100) if total_purchase_cost > 0 else 0.0
     projected_profit_pct = round(projected_profit_pct, 2)

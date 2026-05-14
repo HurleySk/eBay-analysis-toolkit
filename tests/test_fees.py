@@ -77,3 +77,12 @@ def test_high_value_item(default_calculator):
     expected_pp = 500.00 * 2.35 / 100 + 0.30
     expected_net = 500.00 - expected_fvf - expected_pp
     assert result.net == pytest.approx(expected_net, abs=0.01)
+
+
+def test_net_proceeds_with_buyer_shipping(default_calculator):
+    result = default_calculator.calculate_net_proceeds(40.00, shipping_to_buyer=7.00)
+    assert result.gross == 47.00
+    expected_fvf = 47.00 * 13.25 / 100
+    expected_pp = 47.00 * 2.35 / 100 + 0.30
+    assert result.final_value_fee == pytest.approx(expected_fvf, abs=0.01)
+    assert result.payment_processing_fee == pytest.approx(expected_pp, abs=0.01)

@@ -124,6 +124,13 @@ def test_parse_price():
     assert parse_price("$38.50") == 38.50
 
 
+def test_parse_price_range():
+    from ebay_tracker.scraper import parse_price
+
+    assert parse_price("US $10.00 to $20.00") == 10.00
+    assert parse_price("$5.99 to $15.99") == 5.99
+
+
 def test_parse_shipping():
     from ebay_tracker.scraper import parse_shipping
 

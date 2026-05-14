@@ -82,3 +82,14 @@ def test_normalize_item_url_item_id_only():
 def test_normalize_item_url_invalid():
     with pytest.raises(ValueError, match="Could not extract"):
         normalize_item_url("not-a-valid-input")
+
+
+def test_parse_active_listing_no_breadcrumb():
+    from ebay_tracker.scraper import parse_active_listing
+    html = """<html><body>
+    <h1 class="x-item-title__mainTitle"><span>Test Item</span></h1>
+    <div class="x-price-primary"><span class="ux-textspans">US $10.00</span></div>
+    </body></html>"""
+    listing = parse_active_listing(html, "999")
+    assert listing.category_id is None
+    assert listing.title == "Test Item"
