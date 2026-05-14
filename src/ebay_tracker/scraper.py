@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 import httpx
 from bs4 import BeautifulSoup
 
+from ebay_tracker.browser import BrowserFetcher
 from ebay_tracker.models import Listing, ActiveListing, SuggestedQuery
 
 
@@ -17,6 +18,16 @@ USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 ]
+
+
+_browser_fetcher: BrowserFetcher | None = None
+
+
+def _get_browser_fetcher(proxy_url: str | None) -> BrowserFetcher:
+    global _browser_fetcher
+    if _browser_fetcher is None:
+        _browser_fetcher = BrowserFetcher(proxy_url)
+    return _browser_fetcher
 
 
 def build_search_url(query: str, filters: dict | None = None) -> str:
@@ -85,8 +96,12 @@ def get_headers() -> dict:
     }
 
 
-def fetch_page(url: str, proxy_url: str | None = None) -> str:
-    """Fetch a page through the proxy using browser TLS fingerprinting."""
+def fetch_page(url: str, proxy_url: str | None = None, use_browser: bool = False) -> str:
+    """Fetch a page. use_browser=True for Playwright (sold listings, item pages)."""
+    if use_browser:
+        fetcher = _get_browser_fetcher(proxy_url)
+        return fetcher.fetch(url)
+
     try:
         from curl_cffi import requests as cffi_requests
         response = cffi_requests.get(
@@ -306,7 +321,7 @@ def normalize_item_url(url_or_item_id: str) -> tuple[str, str]:
 
 def fetch_active_listing(url_or_item_id: str, proxy_url: str | None = None) -> ActiveListing:
     url, item_id = normalize_item_url(url_or_item_id)
-    html = fetch_page(url, proxy_url)
+    html = fetch_page(url, proxy_url, use_browser=True)
     return parse_active_listing(html, item_id)
 
 
