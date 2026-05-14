@@ -253,6 +253,7 @@ dependencies = [
     { name = "lxml" },
     { name = "mcp" },
     { name = "pandas" },
+    { name = "playwright" },
     { name = "python-dotenv" },
     { name = "rich" },
     { name = "scipy" },
@@ -260,9 +261,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-browser = [
-    { name = "playwright" },
-]
 dev = [
     { name = "pytest" },
     { name = "pytest-httpx" },
@@ -283,7 +281,7 @@ requires-dist = [
     { name = "lxml", specifier = ">=5.0.0" },
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "pandas", specifier = ">=2.0.0" },
-    { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.40.0" },
+    { name = "playwright", specifier = ">=1.40.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest-httpx", marker = "extra == 'dev'", specifier = ">=0.30.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
@@ -292,7 +290,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.11.0" },
     { name = "typer", specifier = ">=0.9.0" },
 ]
-provides-extras = ["browser", "dev"]
+provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
