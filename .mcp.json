@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ebay-resale": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--directory", "{PLUGIN_DIR}", "python", "-m", "ebay_tracker"]
+    }
+  }
+}
