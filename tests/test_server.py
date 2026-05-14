@@ -7,6 +7,7 @@ from ebay_tracker.server import (
     _do_run_profit_analysis,
     _do_configure_fees,
     _do_configure_thresholds,
+    _do_test_connection,
 )
 from ebay_tracker.models import ActiveListing, Listing
 
@@ -95,3 +96,10 @@ def test_do_configure_thresholds(tmp_path, monkeypatch):
     result = _do_configure_thresholds(min_profit_pct=25.0, mode="or")
     assert result["thresholds"]["min_profit_pct"] == 25.0
     assert result["thresholds"]["mode"] == "or"
+
+
+def test_do_test_connection_no_proxy(monkeypatch):
+    monkeypatch.delenv("DECODO_PROXY_URL", raising=False)
+    result = _do_test_connection()
+    assert result["proxy_configured"] is False
+    assert "error" in result

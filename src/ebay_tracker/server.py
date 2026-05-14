@@ -11,6 +11,7 @@ from ebay_tracker.models import ActiveListing
 from ebay_tracker.scraper import (
     build_search_url, extract_search_query,
     fetch_active_listing, fetch_page, parse_listings,
+    _get_browser_fetcher,
 )
 
 mcp = FastMCP(
@@ -87,7 +88,7 @@ def _do_run_profit_analysis(
     )
 
     url = build_search_url(comp_query, comp_filters)
-    html = fetch_page(url, config.proxy_url)
+    html = fetch_page(url, config.proxy_url, use_browser=True)
     comps = parse_listings(html, search_id=0)
 
     result = _run_analysis(listing, comps, fee_cfg, threshold_cfg)
@@ -253,6 +254,52 @@ def configure_thresholds(
         "mode": mode,
     }
     result = _do_configure_thresholds(**{k: v for k, v in kwargs.items() if v is not None})
+    return json.dumps(result, indent=2)
+
+
+def _do_test_connection() -> dict:
+    config = get_config()
+    result = {
+        "proxy_configured": config.proxy_url is not None,
+        "proxy_ip": None,
+        "browser_status": "unknown",
+        "ebay_reachable": False,
+    }
+
+    if not config.proxy_url:
+        result["error"] = "No proxy configured. Set DECODO_PROXY_URL in .env"
+        return result
+
+    try:
+        from curl_cffi import requests as cffi_requests
+        ip_resp = cffi_requests.get(
+            "https://ip.decodo.com/json",
+            proxy=config.proxy_url,
+            impersonate="chrome",
+            timeout=15,
+        )
+        if ip_resp.status_code == 200:
+            ip_data = ip_resp.json()
+            result["proxy_ip"] = ip_data.get("proxy", {}).get("ip", "unknown")
+    except Exception as e:
+        result["proxy_ip"] = f"error: {e}"
+
+    try:
+        fetcher = _get_browser_fetcher(config.proxy_url)
+        result["browser_status"] = "running" if fetcher.is_running else "stopped (will start on demand)"
+        html = fetcher.fetch("https://www.ebay.com/")
+        result["ebay_reachable"] = len(html) > 1000
+    except Exception as e:
+        result["browser_status"] = f"error: {e}"
+
+    return result
+
+
+@mcp.tool()
+def test_connection() -> str:
+    """Test proxy connectivity and browser health. Call this first if scraping fails.
+    Returns proxy IP, browser status, and eBay reachability."""
+    result = _do_test_connection()
     return json.dumps(result, indent=2)
 
 
