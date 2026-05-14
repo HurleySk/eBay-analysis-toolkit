@@ -86,15 +86,28 @@ def get_headers() -> dict:
 
 
 def fetch_page(url: str, proxy_url: str | None = None) -> str:
-    """Fetch a page through the proxy."""
-    transport = None
-    if proxy_url:
-        transport = httpx.HTTPTransport(proxy=proxy_url)
-
-    with httpx.Client(transport=transport, timeout=30.0, follow_redirects=True) as client:
-        response = client.get(url, headers=get_headers())
+    """Fetch a page through the proxy using browser TLS fingerprinting."""
+    try:
+        from curl_cffi import requests as cffi_requests
+        response = cffi_requests.get(
+            url,
+            headers=get_headers(),
+            proxy=proxy_url,
+            impersonate="chrome",
+            timeout=30,
+            allow_redirects=True,
+        )
         response.raise_for_status()
         return response.text
+    except ImportError:
+        transport = None
+        if proxy_url:
+            transport = httpx.HTTPTransport(proxy=proxy_url)
+
+        with httpx.Client(transport=transport, timeout=30.0, follow_redirects=True) as client:
+            response = client.get(url, headers=get_headers())
+            response.raise_for_status()
+            return response.text
 
 
 def parse_listings(html: str, search_id: int) -> list[Listing]:
