@@ -1,4 +1,3 @@
-import pytest
 from ebay_tracker.browser import BrowserFetcher, parse_proxy_url
 
 

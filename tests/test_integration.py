@@ -27,7 +27,7 @@ def test_full_workflow_with_mock_data(runner, temp_env, monkeypatch):
     from ebay_tracker.cli import app
 
     # Mock the fetch_page function to return test data
-    def mock_fetch_page(url, proxy_url=None):
+    def mock_fetch_page(url, proxy_url=None, use_browser=False):
         return """
         <ul class="srp-results">
           <li class="s-item">
