@@ -98,11 +98,15 @@ def get_headers() -> dict:
     }
 
 
+_EBAY_CONTENT_SELECTOR = "li.s-card, li.s-item, h1.x-item-title__mainTitle"
+
+
 def fetch_page(url: str, proxy_url: str | None = None, use_browser: bool = False) -> str:
     """Fetch a page. use_browser=True for Playwright (sold listings, item pages)."""
     if use_browser:
         fetcher = _get_browser_fetcher(proxy_url)
-        return fetcher.fetch(url)
+        selector = _EBAY_CONTENT_SELECTOR if "ebay.com" in url else None
+        return fetcher.fetch(url, wait_selector=selector)
 
     try:
         from curl_cffi import requests as cffi_requests

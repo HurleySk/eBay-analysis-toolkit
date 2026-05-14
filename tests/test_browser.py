@@ -36,7 +36,7 @@ def test_browser_fetcher_not_running_initially():
 @pytest.mark.browser
 def test_browser_fetcher_start_stop():
     fetcher = BrowserFetcher(proxy_url=None)
-    fetcher.start()
+    fetcher.start(warmup_url=None)
     assert fetcher.is_running is True
     fetcher.stop()
     assert fetcher.is_running is False
@@ -45,7 +45,7 @@ def test_browser_fetcher_start_stop():
 @pytest.mark.browser
 def test_browser_fetcher_fetch_returns_html():
     fetcher = BrowserFetcher(proxy_url=None)
-    fetcher.start()
+    fetcher.start(warmup_url=None)
     try:
         html = fetcher.fetch("https://example.com")
         assert "<html" in html.lower() or "<!doctype" in html.lower()

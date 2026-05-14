@@ -43,7 +43,7 @@ class BrowserFetcher:
     def is_running(self) -> bool:
         return self._browser is not None
 
-    def start(self) -> None:
+    def start(self, warmup_url: str | None = "https://www.ebay.com/") -> None:
         with self._lock:
             if self._browser is not None:
                 return
@@ -73,6 +73,17 @@ class BrowserFetcher:
             )
             self._context.add_init_script(_STEALTH_SCRIPT)
 
+        # Akamai requires session cookies before allowing sold listing pages
+        if warmup_url:
+            page = self._context.new_page()
+            try:
+                page.goto(warmup_url, wait_until="commit", timeout=15000)
+                page.wait_for_selector("input, a[href]", timeout=10000)
+            except Exception:
+                page.wait_for_timeout(3000)
+            finally:
+                page.close()
+
     def stop(self) -> None:
         with self._lock:
             self._cancel_idle_timer()
@@ -86,7 +97,7 @@ class BrowserFetcher:
                 self._playwright.stop()
                 self._playwright = None
 
-    def fetch(self, url: str) -> str:
+    def fetch(self, url: str, wait_selector: str | None = None) -> str:
         if not self.is_running:
             self.start()
         self._reset_idle_timer()
@@ -100,8 +111,14 @@ class BrowserFetcher:
 
         page = context.new_page()
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(random.randint(1000, 3000))
+            page.goto(url, wait_until="commit", timeout=30000)
+            if wait_selector:
+                try:
+                    page.wait_for_selector(wait_selector, timeout=20000)
+                except Exception:
+                    page.wait_for_timeout(3000)
+            else:
+                page.wait_for_timeout(random.randint(1000, 3000))
             return page.content()
         finally:
             page.close()
