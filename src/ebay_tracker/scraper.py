@@ -25,7 +25,9 @@ _browser_fetcher: BrowserFetcher | None = None
 
 def _get_browser_fetcher(proxy_url: str | None) -> BrowserFetcher:
     global _browser_fetcher
-    if _browser_fetcher is None:
+    if _browser_fetcher is None or _browser_fetcher._proxy_url != proxy_url:
+        if _browser_fetcher is not None:
+            _browser_fetcher.stop()
         _browser_fetcher = BrowserFetcher(proxy_url)
     return _browser_fetcher
 

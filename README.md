@@ -19,6 +19,7 @@ Requires Python 3.11+ and [uv](https://github.com/astral-sh/uv).
 git clone <repo-url>
 cd eBay-analysis-toolkit
 uv sync
+uv run playwright install chromium
 ```
 
 ## Configuration
@@ -32,8 +33,8 @@ cp .env.example .env
 Configure your Decodo proxy for reliable eBay scraping:
 
 ```
-# Use us.decodo.com for US geotargeting (avoids foreign language pages)
-DECODO_PROXY_URL=http://username:password@us.decodo.com:10001
+# Decodo residential proxy - gate.decodo.com with user- prefix for rotating IPs
+DECODO_PROXY_URL=http://user-USERNAME-country-us:PASSWORD@gate.decodo.com:7000
 
 # Database location (optional, defaults to ./data/ebay_tracker.db)
 EBAY_TRACKER_DB_PATH=./data/ebay_tracker.db
@@ -159,7 +160,10 @@ ebay-tracker status
 ## Development
 
 ```bash
-# Run tests
+# Run tests (fast, no browser)
+uv run pytest -v -m "not browser"
+
+# Run all tests including browser integration
 uv run pytest -v
 
 # Run linter

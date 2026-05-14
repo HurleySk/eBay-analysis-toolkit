@@ -91,7 +91,14 @@ class BrowserFetcher:
             self.start()
         self._reset_idle_timer()
 
-        page = self._context.new_page()
+        with self._lock:
+            context = self._context
+        if context is None:
+            self.start()
+            with self._lock:
+                context = self._context
+
+        page = context.new_page()
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             page.wait_for_timeout(random.randint(1000, 3000))

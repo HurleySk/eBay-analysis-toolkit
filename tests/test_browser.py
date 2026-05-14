@@ -1,3 +1,4 @@
+import pytest
 from ebay_tracker.browser import BrowserFetcher, parse_proxy_url
 
 
@@ -32,6 +33,7 @@ def test_browser_fetcher_not_running_initially():
     assert fetcher.is_running is False
 
 
+@pytest.mark.browser
 def test_browser_fetcher_start_stop():
     fetcher = BrowserFetcher(proxy_url=None)
     fetcher.start()
@@ -40,6 +42,7 @@ def test_browser_fetcher_start_stop():
     assert fetcher.is_running is False
 
 
+@pytest.mark.browser
 def test_browser_fetcher_fetch_returns_html():
     fetcher = BrowserFetcher(proxy_url=None)
     fetcher.start()
@@ -51,13 +54,16 @@ def test_browser_fetcher_fetch_returns_html():
         fetcher.stop()
 
 
+@pytest.mark.browser
 def test_browser_fetcher_auto_starts_on_fetch():
     fetcher = BrowserFetcher(proxy_url=None)
     assert fetcher.is_running is False
-    html = fetcher.fetch("https://example.com")
-    assert fetcher.is_running is True
-    assert len(html) > 100
-    fetcher.stop()
+    try:
+        html = fetcher.fetch("https://example.com")
+        assert fetcher.is_running is True
+        assert len(html) > 100
+    finally:
+        fetcher.stop()
 
 
 def test_browser_fetcher_stop_when_not_running():
