@@ -9,7 +9,9 @@ from rich.table import Table
 
 from ebay_tracker.analyzer import analyze_listings, get_recommendation
 from ebay_tracker.categories import get_categories_for_preference, search_categories
-from ebay_tracker.config import get_config, get_user_prefs, save_user_prefs, FeeConfig, ThresholdConfig
+from ebay_tracker.config import (
+    FeeConfig, ThresholdConfig, UserPreferences, get_config, get_user_prefs, save_user_prefs,
+)
 from ebay_tracker.db import Database
 from ebay_tracker.evaluator import run_profit_analysis
 from ebay_tracker.models import Search, FetchLog
@@ -743,3 +745,170 @@ def evaluate(
 
 if __name__ == "__main__":
     app()
+
+
+# --- Opportunity scanning ---
+
+DEFAULT_SEEDS = Path("seeds/menswear.toml")
+MAX_CONSECUTIVE_EMPTY = 3
+
+
+def _live_fetch(proxy_url: str | None):
+    """Rate-limited browser fetch with images/fonts blocked (proxy bandwidth is metered)."""
+    def fetch(url: str) -> str:
+        rate_limit_delay()
+        return fetch_page(url, proxy_url, use_browser=True, block_resources=True)
+    return fetch
+
+
+def _scan_fetcher(cache_dir: Path):
+    from ebay_tracker.screener import cached_fetch
+
+    config = get_config()
+    if not config.proxy_url:
+        console.print("[yellow]Warning: No proxy configured. Requests may be blocked.[/yellow]")
+    return cached_fetch(_live_fetch(config.proxy_url), cache_dir)
+
+
+def _fee_and_thresholds() -> tuple[FeeConfig, ThresholdConfig]:
+    prefs = get_user_prefs()
+    return prefs.fees, prefs.thresholds
+
+
+def _money(value: float | None) -> str:
+    return "-" if value is None else f"${value:,.0f}"
+
+
+@app.command("scan-niches")
+def scan_niches(
+    seeds_path: Path = typer.Option(DEFAULT_SEEDS, "--seeds", help="Seed niches TOML file"),
+    only: Optional[str] = typer.Option(None, "--only", help="Comma-separated seed names to run"),
+    limit: Optional[int] = typer.Option(None, "--limit", help="Run only the first N seeds"),
+    out: Optional[Path] = typer.Option(None, "--out", help="JSON output path"),
+    cache_dir: Optional[Path] = typer.Option(None, "--cache-dir", help="HTML cache directory"),
+):
+    """Rank seed niches by how ripe eBay-to-eBay flips are (sell-through, spread, margin)."""
+    import json as json_mod
+    from dataclasses import asdict
+
+    from ebay_tracker.screener import Gates, default_cache_dir, load_seeds, rank, screen_niche
+
+    seeds = load_seeds(seeds_path)
+    if only:
+        wanted = {n.strip().lower() for n in only.split(",")}
+        seeds = [s for s in seeds if s.name.lower() in wanted]
+    if limit:
+        seeds = seeds[:limit]
+    cache_dir = cache_dir or default_cache_dir()
+    out = out or cache_dir / "niches.json"
+    fee_cfg, thresholds = _fee_and_thresholds()
+    gates = Gates()
+    fetch, counters = _scan_fetcher(cache_dir / "html")
+
+    results, errors, empty_streak = [], [], 0
+    for i, seed in enumerate(seeds, 1):
+        console.print(f"[cyan]{i}/{len(seeds)}[/cyan] {seed.name}")
+        try:
+            stats = screen_niche(seed, fetch, fee_cfg, thresholds, gates)
+        except Exception as e:
+            console.print(f"  [red]Error: {e}[/red]")
+            errors.append({"seed": seed.name, "error": str(e)})
+            continue
+        results.append(stats)
+        empty_streak = empty_streak + 1 if stats.cards_parsed == 0 else 0
+        if empty_streak >= MAX_CONSECUTIVE_EMPTY:
+            console.print("[red]Several empty result pages in a row: likely blocked. Stopping.[/red]")
+            break
+
+    ranked = rank(results)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json_mod.dumps({
+        "seeds_file": str(seeds_path),
+        "fees": asdict(fee_cfg),
+        "thresholds": asdict(thresholds),
+        "gates": asdict(gates),
+        "pages": counters,
+        "errors": errors,
+        "niches": [asdict(s) for s in ranked],
+    }, indent=2, default=str))
+
+    table = Table(title="Niche screen (pre-owned, last ~90 days)")
+    for col in ("#", "Niche", "Sold 90d", "Active", "STR", "Sold/wk", "p20", "p50",
+                "Buy ceiling", "Deals", "Pool $/wk", "Gate"):
+        table.add_column(col, justify="left" if col in ("Niche", "Gate") else "right")
+    for n, s in enumerate(ranked, 1):
+        table.add_row(
+            str(n), s.name, str(s.sold_90d), "-" if s.active_now is None else str(s.active_now),
+            "-" if s.str_pct is None else f"{s.str_pct:.0f}%", f"{s.sales_per_week:.1f}",
+            _money(s.p20), _money(s.p50), _money(s.buy_ceiling), f"{s.deal_share_pct:.0f}%",
+            f"{s.profit_pool_week:,.0f}",
+            "[green]pass[/green]" if s.passes else f"[dim]{'; '.join(s.gate_failures)}[/dim]",
+        )
+    console.print(table)
+    console.print(
+        f"Pages fetched {counters['fetched']}, cached {counters['cached']}, "
+        f"{counters['bytes'] / 1e6:.1f} MB HTML. Results: {out}"
+    )
+
+
+@app.command("scan-listings")
+def scan_listings_cmd(
+    from_path: Optional[Path] = typer.Option(None, "--from", help="niches.json from scan-niches"),
+    top: int = typer.Option(10, "--top", help="Scan the top N passing niches"),
+    seeds_path: Path = typer.Option(DEFAULT_SEEDS, "--seeds", help="Seed niches TOML file"),
+    out: Optional[Path] = typer.Option(None, "--out", help="JSON output path"),
+    cache_dir: Optional[Path] = typer.Option(None, "--cache-dir", help="HTML cache directory"),
+):
+    """Find live listings priced under each top niche's buy ceiling."""
+    import json as json_mod
+    from dataclasses import asdict
+
+    from ebay_tracker.screener import NicheStats, default_cache_dir, load_seeds, scan_listings
+
+    cache_dir = cache_dir or default_cache_dir()
+    from_path = from_path or cache_dir / "niches.json"
+    out = out or cache_dir / "candidates.json"
+    data = json_mod.loads(from_path.read_text())
+    niches = [NicheStats(**n) for n in data["niches"]]
+    top_niches = [n for n in niches if n.passes][:top]
+    seeds = {s.name: s for s in load_seeds(seeds_path)}
+    fee_cfg, _ = _fee_and_thresholds()
+    fetch, counters = _scan_fetcher(cache_dir / "html")
+
+    candidates = []
+    for stats in top_niches:
+        seed = seeds.get(stats.name)
+        if seed is None:
+            console.print(f"[yellow]Seed '{stats.name}' not in {seeds_path}, skipping[/yellow]")
+            continue
+        console.print(f"[cyan]Scanning[/cyan] {stats.name} (ceiling {_money(stats.buy_ceiling)})")
+        try:
+            found = scan_listings(seed, stats, fetch, fee_cfg)
+        except Exception as e:
+            console.print(f"  [red]Error: {e}[/red]")
+            continue
+        console.print(f"  {len(found)} under ceiling")
+        candidates.extend(found)
+
+    candidates.sort(key=lambda c: c.profit_at_p50, reverse=True)
+    out.write_text(json_mod.dumps({
+        "from": str(from_path),
+        "niches_scanned": [n.name for n in top_niches],
+        "pages": counters,
+        "candidates": [asdict(c) for c in candidates],
+    }, indent=2, default=str))
+
+    table = Table(title="Live listings under buy ceiling")
+    for col in ("Niche", "Title", "Cost", "Ceiling", "Profit @p50", "Profit @p25", "Action", "Item"):
+        table.add_column(col, justify="left" if col in ("Niche", "Title", "Action", "Item") else "right")
+    for c in candidates:
+        table.add_row(
+            c.niche, c.title[:60], f"${c.total_cost:,.2f}", _money(c.buy_ceiling),
+            f"${c.profit_at_p50:,.0f}", f"${c.profit_at_p25:,.0f}",
+            c.action + (f" ({c.time_left})" if c.time_left else ""), c.item_id,
+        )
+    console.print(table)
+    console.print(
+        f"Pages fetched {counters['fetched']}, cached {counters['cached']}, "
+        f"{counters['bytes'] / 1e6:.1f} MB HTML. Results: {out}"
+    )

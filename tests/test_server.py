@@ -10,6 +10,7 @@ from ebay_tracker.server import (
     _do_test_connection,
 )
 from ebay_tracker.models import ActiveListing, Listing
+from ebay_tracker.server import _filter_comps_by_brand, _remove_price_outliers
 
 
 @pytest.fixture
@@ -110,8 +111,6 @@ def test_do_test_connection_no_proxy(monkeypatch):
 
 
 # --- Comp filtering ---
-
-from ebay_tracker.server import _filter_comps_by_brand, _remove_price_outliers
 
 
 def _make_comp(title, price):

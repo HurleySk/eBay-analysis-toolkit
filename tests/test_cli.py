@@ -217,3 +217,54 @@ def test_cli_edit_no_changes(runner, temp_db):
 
     assert result.exit_code == 0
     assert "No changes" in result.stdout
+
+
+def _search_page(count, cards):
+    items = "".join(
+        f'<li class="s-card" data-listingid="{i}"><div class="s-card__title">{t}</div>'
+        f'<a href="https://www.ebay.com/itm/{i}">x</a><span class="s-card__price">${p:.2f}</span>'
+        f'<span class="s-card__subtitle">Pre-Owned</span>'
+        f'<span class="positive">Sold  Sep {1 + i % 28}, 2026</span></li>'
+        for i, (t, p) in enumerate(cards)
+    )
+    return (
+        f'<h1 class="srp-controls__count-heading"><span class="BOLD">{count}</span> results for x</h1>'
+        f"<ul>{items}</ul>"
+    )
+
+
+def test_scan_niches_cli_with_stubbed_fetch(runner, tmp_path, monkeypatch):
+    import json
+
+    import ebay_tracker.cli as cli
+
+    seeds = tmp_path / "seeds.toml"
+    seeds.write_text(
+        '[[seed]]\nname = "Alden Indy"\nquery = "Alden Indy"\nbrand = "Alden"\n'
+        'kind = "boots"\nship_cost = 14.0\n'
+    )
+    sold_cards = [(f"Alden Indy boot {i}", 150.0 + 10 * i) for i in range(30)]
+    active_cards = [("Alden Indy boot cheap", 120.0), ("Alden Indy boot dear", 600.0)]
+    fetched = []
+
+    def fake_live_fetch(proxy_url):
+        def fetch(url):
+            fetched.append(url)
+            return _search_page(60, sold_cards) if "LH_Sold" in url else _search_page(40, active_cards)
+        return fetch
+
+    monkeypatch.setattr(cli, "_live_fetch", fake_live_fetch)
+    monkeypatch.setattr(cli, "get_user_prefs", lambda: cli.UserPreferences())
+
+    result = runner.invoke(cli.app, ["scan-niches", "--seeds", str(seeds), "--cache-dir", str(tmp_path / "scan")])
+    assert result.exit_code == 0, result.stdout
+    niches = json.loads((tmp_path / "scan" / "niches.json").read_text())["niches"]
+    assert niches[0]["name"] == "Alden Indy"
+    assert niches[0]["sold_90d"] == 60
+    assert niches[0]["gate_failures"] == []
+    assert len(fetched) == 2
+
+    result = runner.invoke(cli.app, ["scan-listings", "--seeds", str(seeds), "--cache-dir", str(tmp_path / "scan")])
+    assert result.exit_code == 0, result.stdout
+    cands = json.loads((tmp_path / "scan" / "candidates.json").read_text())["candidates"]
+    assert [c["title"] for c in cands] == ["Alden Indy boot cheap"]

@@ -8,7 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from ebay_tracker.browser import BrowserFetcher
-from ebay_tracker.models import Listing, ActiveListing, SuggestedQuery
+from ebay_tracker.models import ActiveCard, ActiveListing, Listing, SuggestedQuery
 
 
 USER_AGENTS = [
@@ -23,23 +23,52 @@ USER_AGENTS = [
 _browser_fetcher: BrowserFetcher | None = None
 
 
-def _get_browser_fetcher(proxy_url: str | None) -> BrowserFetcher:
+def _get_browser_fetcher(proxy_url: str | None, block_resources: bool = False) -> BrowserFetcher:
     global _browser_fetcher
-    if _browser_fetcher is None or _browser_fetcher._proxy_url != proxy_url:
+    if (
+        _browser_fetcher is None
+        or _browser_fetcher._proxy_url != proxy_url
+        or _browser_fetcher._block_resources != block_resources
+    ):
         if _browser_fetcher is not None:
             _browser_fetcher.stop()
-        _browser_fetcher = BrowserFetcher(proxy_url)
+        _browser_fetcher = BrowserFetcher(proxy_url, block_resources=block_resources)
     return _browser_fetcher
 
 
-def build_search_url(query: str, filters: dict | None = None) -> str:
-    """Build eBay sold listings search URL."""
-    params = {
-        "_nkw": query,
-        "LH_Complete": "1",
-        "LH_Sold": "1",
-        "_ipg": "240",  # Max results per page
-    }
+_SORT_CODES = {
+    "ending_soonest": "1",
+    "newly_listed": "10",
+    "price_low": "15",  # price + shipping, lowest first
+}
+
+
+def build_search_url(
+    query: str,
+    filters: dict | None = None,
+    sold: bool = True,
+    buying_format: str | None = None,
+    sort: str | None = None,
+) -> str:
+    """Build an eBay search URL: sold listings by default, live listings with sold=False.
+
+    buying_format: "bin" (Buy It Now) or "auction". sort: a key of _SORT_CODES.
+    """
+    params = {"_nkw": query}
+    if sold:
+        params["LH_Complete"] = "1"
+        params["LH_Sold"] = "1"
+    params["_ipg"] = "240"  # Max results per page
+    if buying_format == "bin":
+        params["LH_BIN"] = "1"
+    elif buying_format == "auction":
+        params["LH_Auction"] = "1"
+    elif buying_format is not None:
+        raise ValueError(f"Unknown buying_format: {buying_format}")
+    if sort is not None:
+        if sort not in _SORT_CODES:
+            raise ValueError(f"Unknown sort: {sort}")
+        params["_sop"] = _SORT_CODES[sort]
 
     if filters:
         if "max_price" in filters:
@@ -104,10 +133,13 @@ def get_headers() -> dict:
 _EBAY_CONTENT_SELECTOR = "li.s-card, li.s-item, h1.x-item-title__mainTitle"
 
 
-def fetch_page(url: str, proxy_url: str | None = None, use_browser: bool = False) -> str:
-    """Fetch a page. use_browser=True for Playwright (sold listings, item pages)."""
+def fetch_page(
+    url: str, proxy_url: str | None = None, use_browser: bool = False, block_resources: bool = False
+) -> str:
+    """Fetch a page. use_browser=True for Playwright (sold listings, item pages).
+    block_resources skips images/media/fonts to save proxy bandwidth."""
     if use_browser:
-        fetcher = _get_browser_fetcher(proxy_url)
+        fetcher = _get_browser_fetcher(proxy_url, block_resources)
         selector = _EBAY_CONTENT_SELECTOR if "ebay.com" in url else None
         return fetcher.fetch(url, wait_selector=selector)
 
@@ -192,6 +224,8 @@ def _parse_s_card_items(items, search_id: int) -> list[Listing]:
         if condition_elem:
             condition = condition_elem.get_text(strip=True)
 
+        best_offer_accepted = _is_best_offer_accepted(item)
+
         # Extract sold date - class "positive" often contains sold info
         sold_date = None
         # Look for text containing "Sold" or "Vendido" (Spanish/Portuguese)
@@ -212,9 +246,15 @@ def _parse_s_card_items(items, search_id: int) -> list[Listing]:
             sold_date=sold_date,
             url=url,
             created_at=None,
+            best_offer_accepted=best_offer_accepted,
         ))
 
     return listings
+
+
+def _is_best_offer_accepted(item) -> bool:
+    text = item.get_text(" ", strip=True).lower()
+    return "best offer accepted" in text or item.select_one(".STRIKETHROUGH, s, del") is not None
 
 
 def _parse_s_item_items(items, search_id: int) -> list[Listing]:
@@ -267,9 +307,64 @@ def _parse_s_item_items(items, search_id: int) -> list[Listing]:
             sold_date=sold_date,
             url=url,
             created_at=None,
+            best_offer_accepted=_is_best_offer_accepted(item),
         ))
 
     return listings
+
+
+def parse_result_count(html: str) -> int | None:
+    """Total results from the search heading, e.g. "1,234 results for alden"."""
+    soup = BeautifulSoup(html, "lxml")
+    heading = soup.select_one(".srp-controls__count-heading, h1.srp-controls__count-heading")
+    text = heading.get_text(" ", strip=True) if heading else ""
+    match = re.search(r"([\d,]+)\+?\s+results?", text)
+    if not match:
+        match = re.search(r"([\d,]+)\+?\s+results?\s+for", soup.get_text(" ", strip=True)[:20000])
+    if not match:
+        return None
+    return int(match.group(1).replace(",", ""))
+
+
+def parse_active_cards(html: str) -> list[ActiveCard]:
+    """Parse live listings from an active search results page (s-card format)."""
+    soup = BeautifulSoup(html, "lxml")
+    cards = []
+    for item in soup.select("li.s-card"):
+        item_id = item.get("data-listingid")
+        title_elem = item.select_one(".s-card__title")
+        if not item_id or not title_elem:
+            continue
+        title = title_elem.get_text(strip=True)
+        if title.lower() == "shop on ebay":
+            continue
+        price_elem = item.select_one(".s-card__price")
+        price = parse_price(price_elem.get_text(strip=True)) if price_elem else 0.0
+
+        text = item.get_text(" ", strip=True)
+        shipping = None
+        ship_match = re.search(r"(free (?:delivery|shipping))|\+\s*\$([\d,]+\.?\d*)\s+(?:delivery|shipping)", text, re.I)
+        if ship_match:
+            shipping = 0.0 if ship_match.group(1) else float(ship_match.group(2).replace(",", ""))
+
+        bids_match = re.search(r"(\d+)\s+bids?\b", text, re.I)
+        time_match = re.search(r"((?:\d+d\s*)?(?:\d+h\s*)?(?:\d+m\s*)?(?:\d+s\s*)?)\s*left", text, re.I)
+        time_left = time_match.group(0).strip() if time_match and time_match.group(1).strip() else None
+        is_auction = bids_match is not None or time_left is not None
+
+        condition_elem = item.select_one(".s-card__subtitle")
+        cards.append(ActiveCard(
+            item_id=item_id,
+            title=title,
+            price=price,
+            shipping=shipping,
+            condition=condition_elem.get_text(strip=True) if condition_elem else None,
+            url=f"https://www.ebay.com/itm/{item_id}",
+            is_auction=is_auction,
+            bid_count=int(bids_match.group(1)) if bids_match else None,
+            time_left=time_left,
+        ))
+    return cards
 
 
 def extract_item_id(url: str) -> str | None:

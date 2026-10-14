@@ -1,6 +1,12 @@
 import pytest
 from pathlib import Path
-from ebay_tracker.scraper import parse_active_listing, extract_search_query, normalize_item_url
+from ebay_tracker.models import ActiveListing
+from ebay_tracker.scraper import (
+    build_search_url,
+    extract_search_query,
+    normalize_item_url,
+    parse_active_listing,
+)
 
 
 @pytest.fixture
@@ -97,7 +103,6 @@ def test_parse_active_listing_no_breadcrumb():
 
 # --- Query generation: Model-based improvements ---
 
-from ebay_tracker.models import ActiveListing
 
 
 def test_extract_search_query_uses_model_when_contains_brand():
@@ -188,7 +193,6 @@ def test_extract_search_query_model_same_as_brand():
 
 # --- build_search_url shoe size filter ---
 
-from ebay_tracker.scraper import build_search_url
 
 
 def test_build_search_url_includes_shoe_size_aspect():

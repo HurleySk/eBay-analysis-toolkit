@@ -1,5 +1,5 @@
 import pytest
-from ebay_tracker.browser import BrowserFetcher, parse_proxy_url
+from ebay_tracker.browser import BrowserFetcher, _should_block, parse_proxy_url
 
 
 def test_parse_proxy_url_full():
@@ -26,6 +26,20 @@ def test_parse_proxy_url_no_auth():
 def test_parse_proxy_url_none():
     result = parse_proxy_url(None)
     assert result is None
+
+
+def test_block_resources_skips_images_media_fonts():
+    assert _should_block("image")
+    assert _should_block("media")
+    assert _should_block("font")
+    assert not _should_block("document")
+    assert not _should_block("script")
+    assert not _should_block("xhr")
+
+
+def test_browser_fetcher_block_resources_off_by_default():
+    assert BrowserFetcher(proxy_url=None)._block_resources is False
+    assert BrowserFetcher(proxy_url=None, block_resources=True)._block_resources is True
 
 
 def test_browser_fetcher_not_running_initially():

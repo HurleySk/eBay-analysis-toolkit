@@ -23,6 +23,15 @@ _STEALTH_ARGS = [
     "--no-default-browser-check",
 ]
 
+# Resource types skipped when block_resources is on: search pages parse from HTML
+# alone, and a residential proxy bills per byte.
+BLOCKED_RESOURCE_TYPES = {"image", "media", "font"}
+
+
+def _should_block(resource_type: str) -> bool:
+    return resource_type in BLOCKED_RESOURCE_TYPES
+
+
 _STEALTH_SCRIPT = """
 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
 Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
@@ -30,9 +39,10 @@ Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
 
 
 class BrowserFetcher:
-    def __init__(self, proxy_url: str | None, idle_timeout: float = 300.0):
+    def __init__(self, proxy_url: str | None, idle_timeout: float = 300.0, block_resources: bool = False):
         self._proxy_url = proxy_url
         self._idle_timeout = idle_timeout
+        self._block_resources = block_resources
         self._playwright = None
         self._browser = None
         self._context = None
@@ -72,6 +82,13 @@ class BrowserFetcher:
                 timezone_id="America/New_York",
             )
             self._context.add_init_script(_STEALTH_SCRIPT)
+            if self._block_resources:
+                self._context.route(
+                    "**/*",
+                    lambda route: route.abort()
+                    if _should_block(route.request.resource_type)
+                    else route.continue_(),
+                )
 
         # Akamai requires session cookies before allowing sold listing pages
         if warmup_url:

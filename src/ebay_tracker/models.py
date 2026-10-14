@@ -24,6 +24,8 @@ class Listing:
     sold_date: date | None
     url: str | None
     created_at: datetime | None
+    # Sold card shows the asking price, not the (lower) accepted offer
+    best_offer_accepted: bool = False
 
     @property
     def total_price(self) -> float:
@@ -50,6 +52,24 @@ class ActiveListing:
     item_specifics: dict
     url: str
     seller: str | None
+
+    @property
+    def total_cost(self) -> float:
+        return self.price + (self.shipping or 0)
+
+
+@dataclass
+class ActiveCard:
+    """A live listing as shown on an active search results page."""
+    item_id: str
+    title: str
+    price: float
+    shipping: float | None
+    condition: str | None
+    url: str
+    is_auction: bool = False
+    bid_count: int | None = None
+    time_left: str | None = None
 
     @property
     def total_cost(self) -> float:

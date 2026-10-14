@@ -1,0 +1,406 @@
+# Menswear + shoes niches for `ebay-tracker scan-niches`.
+#
+# Each [[seed]] is one niche: a sold search and an active search (pre-owned
+# by default). `brand` lists the title spellings that count as a real comp.
+# `alt_queries` are common misspellings: brand first, so the scan can match them.
+# `keep` un-junks default junk terms (e.g. "women's" for unisex sizing).
+# `filters.category` uses eBay category IDs: 93427 men's shoes, 15709 men's athletic
+# shoes, 57988 men's coats & jackets, 57990 men's casual shirts, 11511 men's sweaters,
+# 11483 men's jeans.
+
+# Outbound label cost (USPS Ground Advantage, typical weights) by kind
+[ship_cost]
+boots = 14.0
+shoes = 12.0
+sneakers = 12.0
+outerwear = 11.0
+shirt = 6.0
+knit = 8.0
+denim = 7.0
+
+# --- Heritage boots ---
+
+[[seed]]
+name = "Alden Indy boot"
+query = "Alden Indy boot"
+brand = "Alden"
+kind = "boots"
+filters = { category = 93427 }
+
+[[seed]]
+name = "Red Wing Iron Ranger"
+query = "Red Wing Iron Ranger"
+brand = ["Red Wing", "Redwing"]
+kind = "boots"
+filters = { category = 93427 }
+alt_queries = ["Redwing Iron Ranger"]
+
+[[seed]]
+name = "Red Wing Moc Toe"
+query = "Red Wing moc toe"
+brand = ["Red Wing", "Redwing"]
+kind = "boots"
+filters = { category = 93427 }
+alt_queries = ["Redwing moc toe"]
+
+[[seed]]
+name = "Red Wing Blacksmith"
+query = "Red Wing Blacksmith"
+brand = ["Red Wing", "Redwing"]
+kind = "boots"
+filters = { category = 93427 }
+
+[[seed]]
+name = "Viberg Service Boot"
+query = "Viberg service boot"
+brand = "Viberg"
+kind = "boots"
+filters = { category = 93427 }
+alt_queries = ["Vibergs boot", "Viburg boot"]
+
+[[seed]]
+name = "White's Semi-Dress"
+query = "Whites semi dress boot"
+brand = ["White's", "Whites"]
+kind = "boots"
+filters = { category = 93427 }
+
+[[seed]]
+name = "Wesco Jobmaster"
+query = "Wesco Jobmaster"
+brand = "Wesco"
+kind = "boots"
+filters = { category = 93427 }
+
+[[seed]]
+name = "Danner Mountain Light"
+query = "Danner Mountain Light"
+brand = "Danner"
+kind = "boots"
+filters = { category = 93427 }
+alt_queries = ["Danner Mountain Lite"]
+
+[[seed]]
+name = "Blundstone"
+query = "Blundstone boots"
+brand = "Blundstone"
+kind = "boots"
+filters = { category = 93427 }
+keep = ["women", "womens", "women's"]
+alt_queries = ["Blunstone boots"]
+
+[[seed]]
+name = "Grant Stone Diesel"
+query = "Grant Stone Diesel"
+brand = "Grant Stone"
+kind = "boots"
+filters = { category = 93427 }
+
+[[seed]]
+name = "Tricker's boot"
+query = "Trickers boots"
+brand = ["Tricker's", "Trickers"]
+kind = "boots"
+filters = { category = 93427 }
+alt_queries = ["Tricker boots"]
+
+# --- Dress and casual shoes ---
+
+[[seed]]
+name = "Alden shell cordovan"
+query = "Alden shell cordovan"
+brand = "Alden"
+kind = "shoes"
+filters = { category = 93427 }
+
+[[seed]]
+name = "Allen Edmonds Park Avenue"
+query = "Allen Edmonds Park Avenue"
+brand = ["Allen Edmonds", "Allen Edmond"]
+kind = "shoes"
+filters = { category = 93427 }
+alt_queries = ["Allen Edmund Park Avenue"]
+
+[[seed]]
+name = "Allen Edmonds Strand"
+query = "Allen Edmonds Strand"
+brand = ["Allen Edmonds", "Allen Edmond"]
+kind = "shoes"
+filters = { category = 93427 }
+
+[[seed]]
+name = "Crockett & Jones"
+query = "Crockett Jones shoes"
+brand = "Crockett"
+kind = "shoes"
+filters = { category = 93427 }
+alt_queries = ["Crocket Jones shoes"]
+
+[[seed]]
+name = "Edward Green"
+query = "Edward Green shoes"
+brand = "Edward Green"
+kind = "shoes"
+filters = { category = 93427 }
+
+[[seed]]
+name = "Paraboot Michael"
+query = "Paraboot Michael"
+brand = "Paraboot"
+kind = "shoes"
+filters = { category = 93427 }
+alt_queries = ["Parabot Michael"]
+
+[[seed]]
+name = "Rancourt"
+query = "Rancourt shoes"
+brand = "Rancourt"
+kind = "shoes"
+filters = { category = 93427 }
+alt_queries = ["Rancort shoes"]
+
+[[seed]]
+name = "Quoddy"
+query = "Quoddy"
+brand = "Quoddy"
+kind = "shoes"
+filters = { category = 93427 }
+alt_queries = ["Quody"]
+
+[[seed]]
+name = "Clarks Wallabee"
+query = "Clarks Wallabee"
+brand = "Clarks"
+kind = "shoes"
+filters = { category = 93427 }
+alt_queries = ["Clarks Wallaby"]
+
+[[seed]]
+name = "Birkenstock Boston"
+query = "Birkenstock Boston"
+brand = "Birkenstock"
+kind = "shoes"
+filters = { category = 93427 }
+keep = ["women", "womens", "women's"]
+
+[[seed]]
+name = "Paraboot Chambord"
+query = "Paraboot Chambord"
+brand = "Paraboot"
+kind = "shoes"
+filters = { category = 93427 }
+
+# --- Sneakers (athletic shoes fee tier) ---
+
+[[seed]]
+name = "New Balance 993"
+query = "New Balance 993"
+brand = ["New Balance"]
+kind = "sneakers"
+filters = { category = 15709 }
+
+[[seed]]
+name = "New Balance 990v3"
+query = "New Balance 990v3"
+brand = ["New Balance"]
+kind = "sneakers"
+filters = { category = 15709 }
+
+[[seed]]
+name = "Salomon XT-6"
+query = "Salomon XT-6"
+brand = "Salomon"
+kind = "sneakers"
+filters = { category = 15709 }
+
+[[seed]]
+name = "Asics Gel-Kayano 14"
+query = "Asics Gel Kayano 14"
+brand = "Asics"
+kind = "sneakers"
+filters = { category = 15709 }
+
+# --- Outerwear ---
+
+[[seed]]
+name = "Barbour Bedale"
+query = "Barbour Bedale"
+brand = "Barbour"
+kind = "outerwear"
+filters = { category = 57988 }
+alt_queries = ["Barbor Bedale"]
+
+[[seed]]
+name = "Barbour Beaufort"
+query = "Barbour Beaufort"
+brand = "Barbour"
+kind = "outerwear"
+filters = { category = 57988 }
+alt_queries = ["Barbor Beaufort"]
+
+[[seed]]
+name = "Filson Mackinaw Cruiser"
+query = "Filson Mackinaw Cruiser"
+brand = "Filson"
+kind = "outerwear"
+filters = { category = 57988 }
+alt_queries = ["Filsen Mackinaw"]
+
+[[seed]]
+name = "Filson Tin Cloth"
+query = "Filson Tin Cloth jacket"
+brand = "Filson"
+kind = "outerwear"
+filters = { category = 57988 }
+
+[[seed]]
+name = "Patagonia Retro-X"
+query = "Patagonia Retro-X"
+brand = "Patagonia"
+kind = "outerwear"
+filters = { category = 57988 }
+alt_queries = ["Patagonia Retro X"]
+
+[[seed]]
+name = "Patagonia Synchilla Snap-T"
+query = "Patagonia Synchilla Snap-T"
+brand = "Patagonia"
+kind = "outerwear"
+alt_queries = ["Patagonia Snap T"]
+
+[[seed]]
+name = "Arc'teryx Beta AR"
+query = "Arcteryx Beta AR"
+brand = ["Arc'teryx", "Arcteryx", "Arc teryx"]
+kind = "outerwear"
+filters = { category = 57988 }
+alt_queries = ["Arcterix Beta"]
+
+[[seed]]
+name = "Arc'teryx Atom LT"
+query = "Arcteryx Atom LT"
+brand = ["Arc'teryx", "Arcteryx", "Arc teryx"]
+kind = "outerwear"
+filters = { category = 57988 }
+alt_queries = ["Arcterix Atom"]
+
+[[seed]]
+name = "Carhartt Detroit jacket"
+query = "Carhartt Detroit jacket"
+brand = "Carhartt"
+kind = "outerwear"
+filters = { category = 57988 }
+alt_queries = ["Carhart Detroit jacket"]
+
+[[seed]]
+name = "Carhartt chore coat"
+query = "Carhartt chore coat"
+brand = "Carhartt"
+kind = "outerwear"
+filters = { category = 57988 }
+alt_queries = ["Carhart chore coat"]
+
+[[seed]]
+name = "North Face Nuptse 700"
+query = "North Face Nuptse 700"
+brand = ["North Face", "TNF"]
+kind = "outerwear"
+filters = { category = 57988 }
+
+[[seed]]
+name = "Schott Perfecto"
+query = "Schott Perfecto"
+brand = "Schott"
+kind = "outerwear"
+filters = { category = 57988 }
+
+[[seed]]
+name = "Engineered Garments Bedford"
+query = "Engineered Garments Bedford"
+brand = "Engineered Garments"
+kind = "outerwear"
+filters = { category = 57988 }
+
+# --- Shirts ---
+
+[[seed]]
+name = "Gitman Vintage"
+query = "Gitman Vintage"
+brand = ["Gitman"]
+kind = "shirt"
+filters = { category = 57990 }
+alt_queries = ["Gitmen Vintage"]
+
+[[seed]]
+name = "RRL shirt"
+query = "RRL shirt"
+brand = ["RRL", "Double RL"]
+kind = "shirt"
+filters = { category = 57990 }
+
+[[seed]]
+name = "Pendleton Board Shirt"
+query = "Pendleton board shirt"
+brand = "Pendleton"
+kind = "shirt"
+filters = { category = 57990 }
+
+[[seed]]
+name = "Engineered Garments shirt"
+query = "Engineered Garments shirt"
+brand = "Engineered Garments"
+kind = "shirt"
+filters = { category = 57990 }
+
+[[seed]]
+name = "Kapital"
+query = "Kapital"
+brand = ["Kapital"]
+kind = "shirt"
+exclude = ["capital"]
+
+# --- Knits ---
+
+[[seed]]
+name = "L.L.Bean Norwegian sweater"
+query = "LL Bean Norwegian sweater"
+brand = ["L.L. Bean", "L.L.Bean", "LL Bean", "LLBean"]
+kind = "knit"
+filters = { category = 11511 }
+
+[[seed]]
+name = "RRL sweater"
+query = "RRL sweater"
+brand = ["RRL", "Double RL"]
+kind = "knit"
+filters = { category = 11511 }
+
+# --- Denim ---
+
+[[seed]]
+name = "Levi's Big E"
+query = "Levis Big E"
+brand = ["Levi"]
+kind = "denim"
+filters = { category = 11483 }
+
+[[seed]]
+name = "Levi's Vintage Clothing (LVC)"
+query = "Levis Vintage Clothing LVC"
+brand = ["LVC", "Levi's Vintage", "Levis Vintage"]
+kind = "denim"
+filters = { category = 11483 }
+
+[[seed]]
+name = "Levi's 501 made in USA"
+query = "Levis 501 made in USA"
+brand = ["Levi"]
+kind = "denim"
+filters = { category = 11483 }
+
+[[seed]]
+name = "Iron Heart jeans"
+query = "Iron Heart jeans"
+brand = ["Iron Heart", "Ironheart"]
+kind = "denim"
+filters = { category = 11483 }

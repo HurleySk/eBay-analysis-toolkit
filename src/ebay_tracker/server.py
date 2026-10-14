@@ -4,6 +4,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from mcp.server.fastmcp import FastMCP
 
+from ebay_tracker.comps import filter_by_brand as _filter_comps_by_brand
+from ebay_tracker.comps import remove_price_outliers as _remove_price_outliers
+
 # Single-threaded executor: Playwright's sync API binds its event loop to the
 # creating thread, so all browser operations must run on the same thread.
 _playwright_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="playwright")
@@ -16,25 +19,6 @@ mcp = FastMCP(
         "Use configure_fees/configure_thresholds to set user preferences."
     ),
 )
-
-
-def _filter_comps_by_brand(comps: list, brand: str) -> list:
-    if not brand:
-        return comps
-    brand_lower = brand.lower()
-    return [c for c in comps if brand_lower in c.title.lower()]
-
-
-def _remove_price_outliers(comps: list) -> list:
-    if len(comps) < 8:
-        return comps
-    prices = sorted(c.price for c in comps)
-    q1 = prices[len(prices) // 4]
-    q3 = prices[3 * len(prices) // 4]
-    iqr = q3 - q1
-    lower = q1 - 1.5 * iqr
-    upper = q3 + 1.5 * iqr
-    return [c for c in comps if lower <= c.price <= upper]
 
 
 def _listing_to_dict(listing) -> dict:
