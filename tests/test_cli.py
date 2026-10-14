@@ -254,7 +254,9 @@ def test_scan_niches_cli_with_stubbed_fetch(runner, tmp_path, monkeypatch):
         return fetch
 
     monkeypatch.setattr(cli, "_live_fetch", fake_live_fetch)
-    monkeypatch.setattr(cli, "get_user_prefs", lambda: cli.UserPreferences())
+    from ebay_tracker.config import UserPreferences
+
+    monkeypatch.setattr(cli, "get_user_prefs", lambda: UserPreferences())
 
     result = runner.invoke(cli.app, ["scan-niches", "--seeds", str(seeds), "--cache-dir", str(tmp_path / "scan")])
     assert result.exit_code == 0, result.stdout
