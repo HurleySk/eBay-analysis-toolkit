@@ -5,6 +5,8 @@ import os
 
 from dotenv import load_dotenv
 
+from ebay_tracker.fees import DEFAULT_BUYER_TAX_RATE, DEFAULT_FINAL_VALUE_PCT, DEFAULT_PER_ORDER_FEE
+
 _project_root = Path(__file__).resolve().parent.parent.parent
 load_dotenv(_project_root / ".env")
 load_dotenv()
@@ -25,12 +27,13 @@ def get_config() -> Config:
 
 @dataclass
 class FeeConfig:
-    final_value_pct: float = 13.25
-    payment_processing_pct: float = 2.35
-    payment_processing_flat: float = 0.30
+    final_value_pct: float = DEFAULT_FINAL_VALUE_PCT
+    payment_processing_pct: float = 0.0  # included in FVF since managed payments
+    payment_processing_flat: float = DEFAULT_PER_ORDER_FEE  # eBay per-order fee
     shipping_cost: float = 0.00
     sales_tax_rate: float = 0.00
     state: str | None = None
+    buyer_tax_rate: float = DEFAULT_BUYER_TAX_RATE
 
 
 @dataclass
@@ -81,12 +84,13 @@ def get_user_prefs() -> UserPreferences:
             gender_preference=data.get("gender_preference"),
             favorite_categories=data.get("favorite_categories", []),
             fees=FeeConfig(
-                final_value_pct=fees_data.get("final_value_pct", 13.25),
-                payment_processing_pct=fees_data.get("payment_processing_pct", 2.35),
-                payment_processing_flat=fees_data.get("payment_processing_flat", 0.30),
+                final_value_pct=fees_data.get("final_value_pct", DEFAULT_FINAL_VALUE_PCT),
+                payment_processing_pct=fees_data.get("payment_processing_pct", 0.0),
+                payment_processing_flat=fees_data.get("payment_processing_flat", DEFAULT_PER_ORDER_FEE),
                 shipping_cost=fees_data.get("shipping_cost", 0.00),
                 sales_tax_rate=fees_data.get("sales_tax_rate", 0.00),
                 state=fees_data.get("state"),
+                buyer_tax_rate=fees_data.get("buyer_tax_rate", DEFAULT_BUYER_TAX_RATE),
             ),
             thresholds=ThresholdConfig(
                 min_profit_pct=thresholds_data.get("min_profit_pct", 20.0),
@@ -110,6 +114,7 @@ def save_user_prefs(prefs: UserPreferences) -> None:
             "shipping_cost": prefs.fees.shipping_cost,
             "sales_tax_rate": prefs.fees.sales_tax_rate,
             "state": prefs.fees.state,
+            "buyer_tax_rate": prefs.fees.buyer_tax_rate,
         },
         "thresholds": {
             "min_profit_pct": prefs.thresholds.min_profit_pct,

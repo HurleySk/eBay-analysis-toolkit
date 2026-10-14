@@ -102,6 +102,7 @@ def _do_run_profit_analysis(
         payment_processing_flat=(fee_overrides or {}).get("payment_processing_flat", prefs.fees.payment_processing_flat),
         shipping_cost=(fee_overrides or {}).get("shipping_cost", prefs.fees.shipping_cost),
         sales_tax_rate=(fee_overrides or {}).get("sales_tax_rate", prefs.fees.sales_tax_rate),
+        buyer_tax_rate=(fee_overrides or {}).get("buyer_tax_rate", prefs.fees.buyer_tax_rate),
     )
     threshold_cfg = ThresholdConfig(
         min_profit_pct=(threshold_overrides or {}).get("min_profit_pct", prefs.thresholds.min_profit_pct),
@@ -202,6 +203,7 @@ def _do_configure_fees(**kwargs) -> dict:
             "shipping_cost": prefs.fees.shipping_cost,
             "sales_tax_rate": prefs.fees.sales_tax_rate,
             "state": prefs.fees.state,
+            "buyer_tax_rate": prefs.fees.buyer_tax_rate,
         }
     }
 
@@ -301,6 +303,7 @@ async def configure_fees(
     shipping_cost: float | None = None,
     sales_tax_rate: float | None = None,
     state: str | None = None,
+    buyer_tax_rate: float | None = None,
 ) -> str:
     """Get or set fee configuration. Pass parameters to update, or call with no args to read current config.
     Persists to ~/.config/ebay-tracker/config.json."""
@@ -311,6 +314,7 @@ async def configure_fees(
         "shipping_cost": shipping_cost,
         "sales_tax_rate": sales_tax_rate,
         "state": state,
+        "buyer_tax_rate": buyer_tax_rate,
     }.items() if v is not None}
     result = await asyncio.to_thread(_do_configure_fees, **kwargs)
     return json.dumps(result, indent=2)

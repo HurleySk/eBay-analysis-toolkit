@@ -7,9 +7,10 @@ from ebay_tracker.config import (
 
 def test_fee_config_defaults():
     fc = FeeConfig()
-    assert fc.final_value_pct == 13.25
-    assert fc.payment_processing_pct == 2.35
-    assert fc.payment_processing_flat == 0.30
+    assert fc.final_value_pct == 13.6
+    assert fc.payment_processing_pct == 0.0
+    assert fc.payment_processing_flat == 0.40
+    assert fc.buyer_tax_rate == 7.0
     assert fc.shipping_cost == 0.00
     assert fc.sales_tax_rate == 0.00
     assert fc.state is None
@@ -59,7 +60,7 @@ def test_user_prefs_with_fees_and_thresholds(tmp_path, monkeypatch):
     prefs = UserPreferences(
         gender_preference="mens",
         favorite_categories=[11483],
-        fees=FeeConfig(shipping_cost=8.50, sales_tax_rate=7.0, state="TX"),
+        fees=FeeConfig(shipping_cost=8.50, sales_tax_rate=7.0, state="TX", buyer_tax_rate=6.25),
         thresholds=ThresholdConfig(min_profit_pct=25.0, min_profit_dollar=15.0, mode="and"),
     )
     save_user_prefs(prefs)
@@ -68,6 +69,7 @@ def test_user_prefs_with_fees_and_thresholds(tmp_path, monkeypatch):
     assert loaded.fees.shipping_cost == 8.50
     assert loaded.fees.sales_tax_rate == 7.0
     assert loaded.fees.state == "TX"
+    assert loaded.fees.buyer_tax_rate == 6.25
     assert loaded.thresholds.min_profit_pct == 25.0
     assert loaded.thresholds.mode == "and"
 
@@ -82,5 +84,6 @@ def test_user_prefs_backward_compatible(tmp_path, monkeypatch):
 
     loaded = get_user_prefs()
     assert loaded.gender_preference == "mens"
-    assert loaded.fees.final_value_pct == 13.25
+    assert loaded.fees.final_value_pct == 13.6
+    assert loaded.fees.buyer_tax_rate == 7.0
     assert loaded.thresholds.min_profit_pct == 20.0

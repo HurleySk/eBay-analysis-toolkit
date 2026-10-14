@@ -18,6 +18,7 @@ def run_profit_analysis(
         payment_processing_flat=fee_config.payment_processing_flat,
         shipping_cost=fee_config.shipping_cost,
         sales_tax_rate=fee_config.sales_tax_rate,
+        buyer_tax_rate=fee_config.buyer_tax_rate,
     )
 
     purchase_tax = calculator.calculate_purchase_tax(listing.price)

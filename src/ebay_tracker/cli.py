@@ -603,6 +603,7 @@ def evaluate(
         shipping_cost=shipping_cost if shipping_cost is not None else prefs.fees.shipping_cost,
         sales_tax_rate=tax_rate if tax_rate is not None else prefs.fees.sales_tax_rate,
         state=prefs.fees.state,
+        buyer_tax_rate=prefs.fees.buyer_tax_rate,
     )
     threshold_cfg = ThresholdConfig(
         min_profit_pct=min_profit_pct if min_profit_pct is not None else prefs.thresholds.min_profit_pct,
@@ -679,7 +680,7 @@ def evaluate(
     result_table.add_row("Expected Sale (median)", f"${result.expected_sale_price:.2f}")
     result_table.add_row("Sale Range (25th-75th)", f"${result.sale_price_25th:.2f} - ${result.sale_price_75th:.2f}")
     result_table.add_row("eBay Final Value Fee", f"-${result.net_proceeds.final_value_fee:.2f}")
-    result_table.add_row("Payment Processing", f"-${result.net_proceeds.payment_processing_fee:.2f}")
+    result_table.add_row("Per-order Fee", f"-${result.net_proceeds.payment_processing_fee:.2f}")
     if result.net_proceeds.shipping_cost > 0:
         result_table.add_row("Seller Shipping", f"-${result.net_proceeds.shipping_cost:.2f}")
     result_table.add_row("[bold]Net Proceeds[/bold]", f"[bold]${result.net_proceeds.net:.2f}[/bold]")
