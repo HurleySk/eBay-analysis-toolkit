@@ -10,7 +10,7 @@ from rich.table import Table
 from ebay_tracker.analyzer import analyze_listings, get_recommendation
 from ebay_tracker.categories import get_categories_for_preference, search_categories
 from ebay_tracker.config import (
-    FeeConfig, ThresholdConfig, UserPreferences, get_config, get_user_prefs, save_user_prefs,
+    FeeConfig, ThresholdConfig, get_config, get_user_prefs, save_user_prefs,
 )
 from ebay_tracker.db import Database
 from ebay_tracker.evaluator import run_profit_analysis
