@@ -18,8 +18,8 @@ def test_parse_proxy_url_simple():
 
 def test_parse_proxy_url_decodes_encoded_password():
     # Generated passwords can hold URL-special chars; the .env value encodes them
-    result = parse_proxy_url("http://user-u-country-us:a%2Bb%3Dc%23d@gate.decodo.com:7000")
-    assert result["password"] == "a+b=c#d"
+    result = parse_proxy_url("http://user:pass%2Bword%23@proxy.example.com:8080")
+    assert result["password"] == "pass+word#"
 
 
 def test_parse_proxy_url_no_auth():
