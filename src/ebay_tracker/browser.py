@@ -1,18 +1,19 @@
 import random
 import threading
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from playwright.sync_api import sync_playwright
 
 
 def parse_proxy_url(proxy_url: str | None) -> dict | None:
+    """Percent-encoded credentials (e.g. %2B for "+") are decoded, matching httpx."""
     if not proxy_url:
         return None
     parsed = urlparse(proxy_url)
     result = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
     if parsed.username:
-        result["username"] = parsed.username
-        result["password"] = parsed.password or ""
+        result["username"] = unquote(parsed.username)
+        result["password"] = unquote(parsed.password or "")
     return result
 
 

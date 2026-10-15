@@ -16,6 +16,12 @@ def test_parse_proxy_url_simple():
     assert result["password"] == "secret"
 
 
+def test_parse_proxy_url_decodes_encoded_password():
+    # Generated passwords can hold URL-special chars; the .env value encodes them
+    result = parse_proxy_url("http://user-u-country-us:a%2Bb%3Dc%23d@gate.decodo.com:7000")
+    assert result["password"] == "a+b=c#d"
+
+
 def test_parse_proxy_url_no_auth():
     result = parse_proxy_url("http://proxy.example.com:8080")
     assert result["server"] == "http://proxy.example.com:8080"
